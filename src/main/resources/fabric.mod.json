@@ -24,6 +24,9 @@
     "java": ">=17",
     "fabric-api": "*"
   },
+  "recommends": {
+    "ctov": "*"
+  },
   "custom": {
     "society:note": "Simulation runs server-side; vanilla clients can join a Society server."
   }

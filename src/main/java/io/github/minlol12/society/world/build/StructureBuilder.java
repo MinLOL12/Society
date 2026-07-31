@@ -53,18 +53,30 @@ public final class StructureBuilder {
                                          CultureOrigin origin, boolean finishAll,
                                          VillagerEntity builder) {
         Blueprint blueprint = Blueprints.of(building.type());
-        // CTOV NBT structures: no programmed cells, load from mod when finishing.
-        if (blueprint.solidCells() == 0) {
-            String ctovPath = Blueprints.getCTOVPath(building.type());
-            if (ctovPath != null) {
-                if (finishAll) {
-                    BlockPos anchor = groundAnchor(world, building, blueprint);
-                    io.github.minlol12.society.core.build.CTOVStructureLoader.place(world, ctovPath, anchor, building.rotation());
-                    building.setPlacedCells(1);
+        // CTOV NBT structures: no programmed cells. Show a visible worksite
+        // while labour is still accumulating, then stamp the real CTOV NBT once
+        // the ledger marks the building complete.
+        if (blueprint.solidCells() == 0 && Blueprints.usesCTOV(building.type())) {
+            BlockPos anchor = groundAnchor(world, building, blueprint);
+            if (finishAll) {
+                clearConstructionMarker(world, anchor, blueprint);
+                boolean placed = io.github.minlol12.society.core.build.CTOVStructureLoader.placeAny(
+                        world,
+                        Blueprints.ctovCandidates(building.type(), origin),
+                        anchor,
+                        building.rotation());
+                if (placed) {
+                    building.setPlacedCells(Integer.MAX_VALUE);
                     return true;
                 }
+                // Keep the site visible if CTOV is missing instead of silently
+                // declaring that an invisible structure has been rendered.
+                building.setPlacedCells(0);
+                placeConstructionMarker(world, anchor, blueprint, building, builder);
                 return false;
             }
+            placeConstructionMarker(world, anchor, blueprint, building, builder);
+            return false;
         }
         List<Blueprint.Cell> cells = blueprint.orderedCells();
         if (cells.isEmpty()) return true;
@@ -107,25 +119,12 @@ public final class StructureBuilder {
     /** Removes a building's blocks - used when a site is abandoned. */
     public static void clear(ServerWorld world, Building building) {
         Blueprint blueprint = Blueprints.of(building.type());
-        // CTOV structures: approximate removal by clearing footprint box.
-        if (blueprint.solidCells() == 0) {
-            String ctovPath = Blueprints.getCTOVPath(building.type());
-            if (ctovPath != null) {
-                BlockPos anchor = groundAnchor(world, building, blueprint);
-                int half = Math.max(blueprint.width(), blueprint.depth()) / 2 + 1;
-                int h = Math.max(blueprint.height(), 4);
-                for (int dx = -half; dx <= half; dx++) {
-                    for (int dz = -half; dz <= half; dz++) {
-                        for (int dy = 0; dy < h; dy++) {
-                            BlockPos pos = anchor.add(dx, dy, dz);
-                            if (!world.getBlockState(pos).isAir()) {
-                                world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
-                            }
-                        }
-                    }
-                }
-                return;
-            }
+        // CTOV structures: when a site is abandoned before completion we only
+        // know about the construction marker we placed, so remove that marker.
+        if (blueprint.solidCells() == 0 && Blueprints.usesCTOV(building.type())) {
+            BlockPos anchor = groundAnchor(world, building, blueprint);
+            clearConstructionMarker(world, anchor, blueprint);
+            return;
         }
         BlockPos anchor = groundAnchor(world, building, blueprint);
         for (Blueprint.Cell cell : blueprint.orderedCells()) {
@@ -135,6 +134,114 @@ public final class StructureBuilder {
             if (!world.getBlockState(pos).isAir()) {
                 world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
             }
+        }
+    }
+
+    // =====================================================================
+    // CTOV construction markers
+    // =====================================================================
+
+    /**
+     * CTOV gives us finished NBT pieces rather than layer-by-layer blueprints.
+     * This marker makes a breaking-ground announcement visible immediately:
+     * stakes at first, then scaffolds and a few planks as progress rises.
+     */
+    private static void placeConstructionMarker(ServerWorld world, BlockPos anchor,
+                                                Blueprint blueprint, Building building,
+                                                VillagerEntity builder) {
+        int stage = Math.max(1, Math.min(3, 1 + (int) Math.floor(building.fraction() * 3.0)));
+        if (building.placedCells() >= stage && building.placedCells() < Integer.MAX_VALUE) return;
+        if (building.placedCells() > 0 && building.placedCells() < Integer.MAX_VALUE) {
+            clearConstructionMarker(world, anchor, blueprint);
+        }
+
+        int maxX = Math.max(0, blueprint.width() - 1);
+        int maxZ = Math.max(0, blueprint.depth() - 1);
+        int step = Math.max(2, Math.min(4, Math.max(blueprint.width(), blueprint.depth()) / 3));
+
+        for (int x = 0; x <= maxX; x += step) {
+            placeStake(world, anchor.add(x, 0, 0), stage);
+            placeStake(world, anchor.add(x, 0, maxZ), stage);
+        }
+        for (int z = 0; z <= maxZ; z += step) {
+            placeStake(world, anchor.add(0, 0, z), stage);
+            placeStake(world, anchor.add(maxX, 0, z), stage);
+        }
+        placeStake(world, anchor.add(maxX, 0, maxZ), stage);
+
+        if (stage >= 3) {
+            placeIfOpen(world, anchor.add(maxX / 2, 1, 0), Blocks.OAK_PLANKS.getDefaultState());
+            placeIfOpen(world, anchor.add(maxX / 2, 1, maxZ), Blocks.OAK_PLANKS.getDefaultState());
+            placeIfOpen(world, anchor.add(0, 1, maxZ / 2), Blocks.OAK_PLANKS.getDefaultState());
+            placeIfOpen(world, anchor.add(maxX, 1, maxZ / 2), Blocks.OAK_PLANKS.getDefaultState());
+        }
+
+        building.setPlacedCells(stage);
+        if (builder != null) {
+            BlockPos focus = anchor.add(maxX / 2, 0, maxZ / 2);
+            builder.getNavigation().startMovingTo(focus.getX(), focus.getY(), focus.getZ(), 1.15D);
+            builder.getLookControl().lookAt(focus.getX() + 0.5D, focus.getY() + 0.5D, focus.getZ() + 0.5D);
+            builder.swingHand(Hand.MAIN_HAND, true);
+        }
+    }
+
+    private static void placeStake(ServerWorld world, BlockPos base, int stage) {
+        BlockPos surface = base;
+        if (!world.getBlockState(surface.down()).isOpaqueFullCube(world, surface.down())) {
+            ensureFoundation(world, surface);
+        }
+        placeIfOpen(world, surface, Blocks.OAK_FENCE.getDefaultState());
+        if (stage >= 2) {
+            placeIfOpen(world, surface.up(), Blocks.SCAFFOLDING.getDefaultState());
+            if (stage >= 3) {
+                placeIfOpen(world, surface.up(2), Blocks.SCAFFOLDING.getDefaultState());
+            }
+        }
+        if (stage >= 2) {
+            placeIfOpen(world, surface.up(stage >= 3 ? 3 : 2), Blocks.TORCH.getDefaultState());
+        }
+    }
+
+    private static void placeIfOpen(ServerWorld world, BlockPos pos, BlockState state) {
+        if (world.isOutOfHeightLimit(pos)) return;
+        BlockState existing = world.getBlockState(pos);
+        if (existing.isAir() || existing.isReplaceable()) {
+            world.setBlockState(pos, state, Block.NOTIFY_LISTENERS);
+        }
+    }
+
+    private static void clearConstructionMarker(ServerWorld world, BlockPos anchor, Blueprint blueprint) {
+        int maxX = Math.max(0, blueprint.width() - 1);
+        int maxZ = Math.max(0, blueprint.depth() - 1);
+        int step = Math.max(2, Math.min(4, Math.max(blueprint.width(), blueprint.depth()) / 3));
+
+        for (int x = 0; x <= maxX; x += step) {
+            clearStake(world, anchor.add(x, 0, 0));
+            clearStake(world, anchor.add(x, 0, maxZ));
+        }
+        for (int z = 0; z <= maxZ; z += step) {
+            clearStake(world, anchor.add(0, 0, z));
+            clearStake(world, anchor.add(maxX, 0, z));
+        }
+        clearStake(world, anchor.add(maxX, 0, maxZ));
+        clearMarkerBlock(world, anchor.add(maxX / 2, 1, 0), Blocks.OAK_PLANKS);
+        clearMarkerBlock(world, anchor.add(maxX / 2, 1, maxZ), Blocks.OAK_PLANKS);
+        clearMarkerBlock(world, anchor.add(0, 1, maxZ / 2), Blocks.OAK_PLANKS);
+        clearMarkerBlock(world, anchor.add(maxX, 1, maxZ / 2), Blocks.OAK_PLANKS);
+    }
+
+    private static void clearStake(ServerWorld world, BlockPos surface) {
+        clearMarkerBlock(world, surface, Blocks.OAK_FENCE);
+        clearMarkerBlock(world, surface.up(), Blocks.SCAFFOLDING);
+        clearMarkerBlock(world, surface.up(2), Blocks.SCAFFOLDING);
+        clearMarkerBlock(world, surface.up(2), Blocks.TORCH);
+        clearMarkerBlock(world, surface.up(3), Blocks.TORCH);
+    }
+
+    private static void clearMarkerBlock(ServerWorld world, BlockPos pos, Block expected) {
+        if (world.isOutOfHeightLimit(pos)) return;
+        if (world.getBlockState(pos).getBlock() == expected) {
+            world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
         }
     }
 

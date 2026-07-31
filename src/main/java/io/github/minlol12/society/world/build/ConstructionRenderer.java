@@ -119,6 +119,11 @@ public final class ConstructionRenderer {
     private boolean chunkReady(Building building) {
         Blueprint blueprint = Blueprints.of(building.type());
         int half = Math.max(blueprint.width(), blueprint.depth()) / 2 + 1;
+        // CTOV NBT pieces can be larger than Society's logical plot. Check a
+        // safer area so template placement does not spill into unloaded chunks.
+        if (Blueprints.usesCTOV(building.type())) {
+            half = Math.max(half, 16);
+        }
         int minChunkX = (building.x() - half) >> 4;
         int maxChunkX = (building.x() + half) >> 4;
         int minChunkZ = (building.z() - half) >> 4;

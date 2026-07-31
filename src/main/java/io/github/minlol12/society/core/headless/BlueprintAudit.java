@@ -9,6 +9,7 @@ import io.github.minlol12.society.core.build.Blueprint;
 import io.github.minlol12.society.core.build.Blueprints;
 import io.github.minlol12.society.core.build.Mat;
 import io.github.minlol12.society.core.build.StructureType;
+import io.github.minlol12.society.core.types.CultureOrigin;
 import io.github.minlol12.society.core.types.Good;
 import io.github.minlol12.society.core.types.SettlementTier;
 
@@ -86,6 +87,13 @@ public final class BlueprintAudit {
                     + " far exceeds declared height " + type.height());
         }
         if (bp.solidCells() == 0) {
+            if (Blueprints.usesCTOV(type)
+                    && !Blueprints.ctovCandidates(type, CultureOrigin.PLAINS).isEmpty()) {
+                // CTOV-backed structures are external NBT templates. The
+                // headless audit can verify the logical plot, cost and planner
+                // reach, but not the blocks inside another mod's resource pack.
+                return problems;
+            }
             problems.add("places no blocks at all");
         }
 
