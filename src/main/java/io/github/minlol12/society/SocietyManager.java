@@ -43,6 +43,8 @@ import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.IronGolemEntity;
 import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.entity.projectile.ArrowEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.server.MinecraftServer;
@@ -243,6 +245,8 @@ public final class SocietyManager {
                     }
                     if (overworld.getRandom().nextInt(100) < aggression) {
                         lastVillagerAttackTick.put(uuid, Integer.valueOf(currentTick));
+                        // Give the villager a bow so arrows visibly come from a bow
+                        villager.setStackInHand(Hand.MAIN_HAND, new ItemStack(Items.BOW));
                         if (overworld.getRandom().nextDouble() < 0.10) {
                             ArrowEntity arrow = new ArrowEntity(overworld, villager);
                             double dx = target.getX() - villager.getX();
@@ -259,6 +263,10 @@ public final class SocietyManager {
                             villager.swingHand(Hand.MAIN_HAND, true);
                             overworld.playSound(null, villager.getX(), villager.getY(), villager.getZ(),
                                     SoundEvents.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.NEUTRAL, 1.0F, 1.0F);
+                        }
+                        // Clear the bow after the attack animation so it doesn't stay equipped forever
+                        if (overworld.getRandom().nextDouble() < 0.6) {
+                            villager.setStackInHand(Hand.MAIN_HAND, ItemStack.EMPTY);
                         }
                     }
                 }
@@ -288,10 +296,12 @@ public final class SocietyManager {
                         int deployZ = base != null ? base.z() : s.centerZ();
 
                         for (int i = 0; i < 3; i++) {
-                            IronGolemEntity soldier = EntityType.IRON_GOLEM.create(overworld);
+                            VillagerEntity soldier = EntityType.VILLAGER.create(overworld);
                             if (soldier != null) {
                                 soldier.refreshPositionAndAngles(deployX + (i - 1) * 2, deployY + 1, deployZ, 0, 0);
-                                soldier.setCustomName(Text.literal(s.name() + " Army"));
+                                soldier.setCustomName(Text.literal(s.name() + " Guard"));
+                                // Give the guard a sword for visual defense
+                                soldier.setStackInHand(Hand.MAIN_HAND, new ItemStack(Items.IRON_SWORD));
                                 soldier.setTarget(settlementHostiles.get(i % settlementHostiles.size()));
                                 overworld.spawnEntity(soldier);
                             }
@@ -343,10 +353,11 @@ public final class SocietyManager {
                             for (UUID brawlerId : new ArrayList<UUID>(aggressiveVillagers)) {
                                 Entity brawler = overworld.getEntity(brawlerId);
                                 if (brawler instanceof VillagerEntity bVe && bVe.isAlive()) {
-                                    IronGolemEntity cop = EntityType.IRON_GOLEM.create(overworld);
+                                    VillagerEntity cop = EntityType.VILLAGER.create(overworld);
                                     if (cop != null) {
                                         cop.refreshPositionAndAngles(bVe.getX() + 1, bVe.getY(), bVe.getZ() + 1, 0, 0);
-                                        cop.setCustomName(Text.literal("Cop"));
+                                        cop.setCustomName(Text.literal("Guard"));
+                                        cop.setStackInHand(Hand.MAIN_HAND, new ItemStack(Items.IRON_SWORD));
                                         overworld.spawnEntity(cop);
                                         ArrestEscort escort = new ArrestEscort();
                                         escort.copId = cop.getUuid();

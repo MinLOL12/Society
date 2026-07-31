@@ -325,8 +325,10 @@ public final class EconomySystem {
                 if (spouse == null || !spouse.isAlive()) continue;
                 if (!spouse.homeSettlementId().equals(s.id())) continue;
                 if (isSecondaryPartner(c, spouse)) continue; // process a couple once
-                if (day - c.lastChildBornDay() < 3 || day - spouse.lastChildBornDay() < 3) continue;
-                if (random.nextDouble() >= 0.16) continue;
+                if (day - c.lastChildBornDay() < 2 || day - spouse.lastChildBornDay() < 2) continue;
+                // Higher birth rate to support larger cities (was 0.16)
+                double birthChance = 0.32 + Math.min(0.15, population / 80.0);
+                if (random.nextDouble() >= birthChance) continue;
                 Citizen child = engine.birthChild(c, spouse, s);
                 if (child != null && manifestBudget > 0 && engine.canManifest(s)) {
                     engine.queueSpawn(s, child, true);
