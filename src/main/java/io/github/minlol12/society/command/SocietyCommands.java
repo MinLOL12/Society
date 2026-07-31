@@ -37,7 +37,7 @@ import net.minecraft.util.Formatting;
 public final class SocietyCommands {
 
     private static final String[] SECTIONS = {
-        "info", "economy", "tech", "culture", "diplomacy", "government"
+        "info", "economy", "tech", "culture", "diplomacy", "government", "buildings"
     };
 
     private SocietyCommands() {
@@ -52,9 +52,11 @@ public final class SocietyCommands {
                 send(player, "/society day - the ledger's calendar", Formatting.GRAY);
                 send(player, "/society settlements - every living settlement", Formatting.GRAY);
                 send(player, "/society settlement <name> [info|economy|tech|culture|"
-                        + "diplomacy|government]", Formatting.GRAY);
+                        + "diplomacy|government|buildings]", Formatting.GRAY);
                 send(player, "/society villager <entity> - a person's own page", Formatting.GRAY);
                 send(player, "/society history [count] - the world chronicle", Formatting.GRAY);
+                send(player, "Click a villager (sneak, or hold the Chronicle) to open their page.",
+                        Formatting.DARK_GRAY);
                 send(player, "Craft the Society Chronicle (book + emerald) to browse it in-world.",
                         Formatting.DARK_GRAY);
             }));

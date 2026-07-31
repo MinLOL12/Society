@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Random;
 
 import io.github.minlol12.society.core.SocietyEngine;
+import io.github.minlol12.society.core.data.Building;
 import io.github.minlol12.society.core.data.Citizen;
 import io.github.minlol12.society.core.data.DiplomaticRelation;
 import io.github.minlol12.society.core.data.Settlement;
@@ -92,17 +93,33 @@ public final class EventSystem {
 
         double foodLoss = s.stock(Good.FOOD) * (0.1 + engine.random().nextDouble() * 0.2);
         double woodLoss = s.stock(Good.WOOD) * (0.1 + engine.random().nextDouble() * 0.2);
-        double housingLoss = Math.min(s.housingBuilt(), 1.0 + engine.random().nextInt(3));
         s.addStock(Good.FOOD, -foodLoss);
         s.addStock(Good.WOOD, -woodLoss);
-        s.addHousing(-housingLoss);
+
+        // The fire takes a real building: it is left a burnt-out shell the
+        // builders must come back and raise again.
+        Building burnt = pickBurnable(engine, s);
+        if (burnt != null) {
+            burnt.damage(burnt.totalWork() * (0.35 + engine.random().nextDouble() * 0.4));
+            burnt.setPlacedCells(0);
+        }
         s.addThreat(2.0);
         s.addMorale(-3.0);
         s.culture().noteDisasterSurvived();
         s.culture().addFact("rebuilt after the fire of Day " + engine.day());
         engine.record(EventType.FIRE, s,
-                "Fire sweeps through " + s.name() + "! Buckets pass hand to hand; the "
+                "Fire sweeps through " + s.name() + "!"
+                        + (burnt == null ? "" : " The " + burnt.type().display().toLowerCase()
+                                + " is gutted;")
+                        + " buckets pass hand to hand, and the "
                         + s.culture().origin().buildingStyle() + " will be rebuilt.");
+    }
+
+    /** The fire prefers finished timber buildings over bare sites. */
+    private static Building pickBurnable(SocietyEngine engine, Settlement s) {
+        List<Building> candidates = s.completedBuildings();
+        if (candidates.isEmpty()) return null;
+        return candidates.get(engine.random().nextInt(candidates.size()));
     }
 
     private static void tickPlague(SocietyEngine engine, Settlement s) {
@@ -117,7 +134,7 @@ public final class EventSystem {
         engine.lastPlagueDays().put(s.id(), Integer.valueOf(engine.day()));
         int victims = 0;
         if (engine.cfg().plagueCasualties) {
-            double deathMod = s.tech().deathModifier();
+            double deathMod = s.tech().deathModifier() * s.buildingHealthModifier();
             List<Citizen> people = engine.liveCitizensOf(s);
             for (Citizen c : people) {
                 if (c.isManifested()) continue; // real entities live by Minecraft rules

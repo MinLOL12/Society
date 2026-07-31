@@ -20,6 +20,7 @@ import io.github.minlol12.society.core.data.Personality;
 import io.github.minlol12.society.core.data.Settlement;
 import io.github.minlol12.society.core.data.TradeRoute;
 import io.github.minlol12.society.core.io.Compound;
+import io.github.minlol12.society.core.system.ConstructionSystem;
 import io.github.minlol12.society.core.system.DiplomacySystem;
 import io.github.minlol12.society.core.system.EconomySystem;
 import io.github.minlol12.society.core.system.EventSystem;
@@ -836,6 +837,9 @@ public final class SocietyEngine {
         for (Settlement s : new ArrayList<Settlement>(settlements.values())) {
             if (s.isDestroyed()) continue;
             EconomySystem.tick(this, s, currentSeason);
+            // Roofs before children: the town raises what it needs, and
+            // its real beds decide whether it can grow at all.
+            ConstructionSystem.tick(this, s);
             LifecycleSystem.tick(this, s);
             EventSystem.tick(this, s, context.raining, seasonIndex);
         }

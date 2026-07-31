@@ -141,7 +141,7 @@ public final class LifecycleSystem {
     private static void tickOldAge(SocietyEngine engine, Settlement s, List<Citizen> people) {
         Random random = engine.random();
         int day = engine.day();
-        double deathMod = s.tech().deathModifier();
+        double deathMod = s.tech().deathModifier() * s.buildingHealthModifier();
         boolean healerPresent = s.professionCount(SimProfession.HEALER) > 0;
         if (healerPresent) deathMod *= 0.85;
 

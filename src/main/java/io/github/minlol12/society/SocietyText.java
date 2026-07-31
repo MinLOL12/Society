@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 
 import io.github.minlol12.society.core.SocietyEngine;
+import io.github.minlol12.society.core.build.StructureType;
+import io.github.minlol12.society.core.data.Building;
 import io.github.minlol12.society.core.data.ChronicleEntry;
 import io.github.minlol12.society.core.data.Citizen;
 import io.github.minlol12.society.core.data.DiplomaticRelation;
@@ -60,6 +62,12 @@ public final class SocietyText {
         send(player, people.size() + " souls dwell here (" + manifested + " walk the streets); "
                 + "morale " + Math.round(settlement.morale()) + ", treasury "
                 + Math.round(settlement.treasury()) + ".", Formatting.WHITE);
+
+        int standing = settlement.completedBuildings().size();
+        int rising = settlement.sitesUnderConstruction().size();
+        send(player, standing + (standing == 1 ? " building stands" : " buildings stand")
+                + (rising > 0 ? ", " + rising + " going up" : "")
+                + "; " + settlement.bedCapacity() + " beds.", Formatting.WHITE);
 
         Government government = settlement.government();
         if (government != null) {
@@ -181,9 +189,11 @@ public final class SocietyText {
             printDiplomacySection(player, engine, settlement);
         } else if (section.equals("government")) {
             printGovernmentSection(player, engine, settlement);
+        } else if (section.equals("buildings")) {
+            printBuildingsSection(player, engine, settlement);
         } else {
             send(player, "Unknown section '" + section
-                    + "'. Try: info, economy, tech, culture, diplomacy, government.",
+                    + "'. Try: info, economy, tech, culture, diplomacy, government, buildings.",
                     Formatting.RED);
         }
     }
@@ -368,6 +378,64 @@ public final class SocietyText {
                 send(player, council.toString(), Formatting.GRAY);
             }
         }
+    }
+
+    /** What the settlement has raised, and what it is raising now. */
+    private static void printBuildingsSection(ServerPlayerEntity player,
+            SocietyEngine engine, Settlement settlement) {
+        printSettlementHeader(player, engine, settlement);
+
+        List<Building> standing = settlement.completedBuildings();
+        List<Building> rising = settlement.sitesUnderConstruction();
+        send(player, standing.size() + " buildings stand; " + rising.size()
+                + " are going up. " + settlement.bedCapacity() + " beds in all.",
+                Formatting.WHITE);
+
+        if (standing.isEmpty()) {
+            send(player, "Nothing permanent yet - only fires and bedrolls.", Formatting.GRAY);
+        } else {
+            Map<StructureType, Integer> counts =
+                    new java.util.EnumMap<StructureType, Integer>(StructureType.class);
+            for (Building b : standing) {
+                Integer v = counts.get(b.type());
+                counts.put(b.type(), Integer.valueOf(v == null ? 1 : v.intValue() + 1));
+            }
+            StringBuilder line = new StringBuilder("Standing:");
+            for (Map.Entry<StructureType, Integer> e : counts.entrySet()) {
+                line.append(' ').append(e.getKey().display());
+                if (e.getValue().intValue() > 1) line.append(" x").append(e.getValue());
+                line.append(',');
+            }
+            send(player, line.substring(0, line.length() - 1), Formatting.GREEN);
+        }
+
+        for (Building b : rising) {
+            int percent = (int) Math.round(b.fraction() * 100);
+            Citizen worker = engine.citizens().get(b.workerId());
+            send(player, "  " + b.type().display() + " - " + percent + "% raised at ("
+                    + b.x() + ", " + b.z() + ")"
+                    + (worker == null ? "" : ", worked by " + worker.fullName()),
+                    Formatting.YELLOW);
+        }
+
+        StructureType blocked = settlement.blockedBuild();
+        if (blocked != null) {
+            StringBuilder shortfall = new StringBuilder();
+            appendShortfall(shortfall, settlement, blocked, Good.WOOD);
+            appendShortfall(shortfall, settlement, blocked, Good.STONE);
+            appendShortfall(shortfall, settlement, blocked, Good.IRON);
+            send(player, "They want a " + blocked.display().toLowerCase()
+                    + " but lack " + (shortfall.length() == 0 ? "hands" : shortfall.toString())
+                    + ".", Formatting.GOLD);
+        }
+    }
+
+    private static void appendShortfall(StringBuilder sb, Settlement s,
+            StructureType type, Good good) {
+        double missing = type.cost(good) - s.stock(good);
+        if (missing <= 0) return;
+        if (sb.length() > 0) sb.append(", ");
+        sb.append((int) Math.ceil(missing)).append(' ').append(good.display().toLowerCase());
     }
 
     // =====================================================================
