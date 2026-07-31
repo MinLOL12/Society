@@ -21,7 +21,7 @@ import io.github.minlol12.society.world.CultureSamplerImpl;
 import io.github.minlol12.society.world.DeathCauses;
 import io.github.minlol12.society.world.VillagerTracker;
 
-import net.fabricmc.fabric.api.event.entity.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
