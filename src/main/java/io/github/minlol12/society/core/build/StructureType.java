@@ -235,6 +235,23 @@ public enum StructureType {
         }
     }
 
+    /**
+     * Extra morale bonus from buildings that display paintings. Paintings
+     * in manors, town halls and meeting halls add cultural prestige.
+     */
+    public double paintingMoraleBonus() {
+        switch (this) {
+            case MANOR: return 0.08;
+            case TOWN_HALL: return 0.06;
+            case MEETING_HALL: return 0.05;
+            case LIBRARY: return 0.04;
+            case SCHOOL: return 0.03;
+            case SHRINE: return 0.04;
+            case INN: return 0.03;
+            default: return 0.0;
+        }
+    }
+
     /** How much this building adds to the settlement's defence rating. */
     public double defenceBonus() {
         switch (this) {
@@ -286,15 +303,15 @@ public enum StructureType {
             case SAWMILL: return good == Good.WOOD ? 0.20 : 0.0;
             case MINE_HEAD: return good == Good.IRON ? 0.16 : good == Good.STONE ? 0.08 : 0.0;
             case QUARRY: return good == Good.STONE ? 0.22 : 0.0;
-            case SMITHY: return good == Good.TOOLS ? 0.16 : 0.0;
-            case FOUNDRY: return good == Good.TOOLS ? 0.18 : good == Good.IRON ? 0.12 : 0.0;
-            case CARPENTER: return good == Good.TOOLS ? 0.10 : 0.0;
+            case SMITHY: return good == Good.TOOLS ? 0.16 : good == Good.WEAPONS ? 0.08 : good == Good.SHIELDS ? 0.06 : 0.0;
+            case FOUNDRY: return good == Good.TOOLS ? 0.18 : good == Good.IRON ? 0.12 : good == Good.WEAPONS ? 0.07 : 0.0;
+            case CARPENTER: return good == Good.TOOLS ? 0.10 : good == Good.BOWS ? 0.12 : 0.0;
             case MASON_YARD: return good == Good.STONE ? 0.12 : 0.0;
             case WEAVER: return good == Good.CLOTH ? 0.22 : 0.0;
             case TANNERY: return good == Good.CLOTH ? 0.12 : 0.0;
             case POTTERY: return good == Good.LUXURY ? 0.14 : 0.0;
             case BREWERY: return good == Good.LUXURY ? 0.16 : 0.0;
-            case APOTHECARY: return good == Good.MEDICINE ? 0.22 : 0.0;
+            case APOTHECARY: return good == Good.MEDICINE ? 0.22 : good == Good.POTIONS ? 0.14 : 0.0;
             case INFIRMARY: return good == Good.MEDICINE ? 0.14 : 0.0;
             default: return 0.0;
         }

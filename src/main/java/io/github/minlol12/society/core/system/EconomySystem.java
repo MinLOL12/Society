@@ -89,6 +89,9 @@ public final class EconomySystem {
         // --- Development: tiers rise and fall -------------------------------
         evaluateTier(engine, s, population);
 
+        // --- Market trading: villagers buy and sell at market stalls ------
+        MarketSystem.tick(engine, s);
+
         // --- Storage audit: surplus is sold off or spoils -------------------
         auditStock(engine, s);
 
@@ -177,7 +180,13 @@ public final class EconomySystem {
                 break;
             }
             case GUARD:
-                grantWorkXp(engine, citizen, primary, 0.8);
+                // Well-equipped guards (bows, weapons, shields) provide
+                // better security and are more effective in combat.
+                double equippedBonus = s.stock(Good.BOWS) > 0 ? 1.2 : 1.0;
+                equippedBonus *= s.stock(Good.WEAPONS) > 0 ? 1.15 : 1.0;
+                equippedBonus *= s.stock(Good.SHIELDS) > 0 ? 1.1 : 1.0;
+                citizen.addWealth(0.1 * equippedBonus);
+                grantWorkXp(engine, citizen, primary, 0.8 * equippedBonus);
                 break;
             case STEWARD: {
                 double tax = 0.025 * population * s.tech().coinageModifier();
@@ -461,10 +470,15 @@ public final class EconomySystem {
 
     private static double computeSecurity(SocietyEngine engine, Settlement s, List<Citizen> people) {
         double security = 0.5 + people.size() * 0.04;
+        // Guards with equipment (bows, weapons, shields) provide extra security
+        double equipmentBonus = 1.0;
+        if (s.stock(Good.BOWS) > 0) equipmentBonus += 0.2;
+        if (s.stock(Good.WEAPONS) > 0) equipmentBonus += 0.15;
+        if (s.stock(Good.SHIELDS) > 0) equipmentBonus += 0.1;
         for (Citizen c : people) {
             if (c.profession() == SimProfession.GUARD) {
                 int level = c.skillLevel(Skill.COMBAT);
-                security += (2.0 + level / 25.0) * s.tech().guardModifier();
+                security += (2.0 + level / 25.0) * s.tech().guardModifier() * equipmentBonus;
             }
         }
         if (s.government().hasLaw(Law.MILITIA_EDICT)) {
@@ -617,6 +631,7 @@ public final class EconomySystem {
             case MINER: return Good.IRON;
             case CRAFTER: return Good.TOOLS;
             case HEALER: return Good.MEDICINE;
+            case GUARD: return Good.BOWS;
             default: return Good.FOOD;
         }
     }

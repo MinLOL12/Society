@@ -52,9 +52,17 @@ public enum SimProfession {
                 switch (good) {
                     case TOOLS: return 0.55;
                     case CLOTH: return 0.7;
+                    case BOWS: return 0.25;
+                    case WEAPONS: return 0.18;
+                    case SHIELDS: return 0.15;
                     default: return 0.0;
                 }
-            case HEALER: return good == Good.MEDICINE ? 0.3 : 0.0;
+            case HEALER:
+                switch (good) {
+                    case MEDICINE: return 0.3;
+                    case POTIONS: return 0.12;
+                    default: return 0.0;
+                }
             // Drifters pick berries and set snares; nobody quite starves alone.
             case NONE: return good == Good.FOOD ? 0.2 : 0.0;
             default: return 0.0;
@@ -64,8 +72,8 @@ public enum SimProfession {
     /** Maps a vanilla villager profession registry id (e.g. "minecraft:farmer") to a sim profession. */
     public static SimProfession fromVanillaId(String id) {
         if (id == null) return NONE;
-        if (id.endsWith(":farmer") || id.endsWith(":fisherman") || id.endsWith(":shepherd")
-                || id.endsWith(":fletcher")) return FARMER;
+        if (id.endsWith(":farmer") || id.endsWith(":fisherman") || id.endsWith(":shepherd")) return FARMER;
+        if (id.endsWith(":fletcher")) return CRAFTER; // fletchers craft bows
         if (id.endsWith(":armorer") || id.endsWith(":toolsmith") || id.endsWith(":weaponsmith")) return CRAFTER;
         if (id.endsWith(":butcher") || id.endsWith(":chef") || id.endsWith(":cook")) return FARMER;
         if (id.endsWith(":cartographer")) return TRADER;

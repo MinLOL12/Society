@@ -11,7 +11,12 @@ public enum Good {
     TOOLS("Tools", 6.0),
     CLOTH("Cloth", 3.0),
     MEDICINE("Medicine", 8.0),
-    LUXURY("Luxury Goods", 15.0);
+    LUXURY("Luxury Goods", 15.0),
+    BOWS("Bows", 7.0),
+    WEAPONS("Weapons", 10.0),
+    SHIELDS("Shields", 8.0),
+    POTIONS("Potions", 12.0),
+    ENCHANTED("Enchanted Items", 25.0);
 
     private final String display;
     private final double baseValue;

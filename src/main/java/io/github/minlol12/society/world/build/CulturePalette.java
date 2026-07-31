@@ -107,7 +107,8 @@ public final class CulturePalette {
          .put(Mat.BREWING_STAND, Blocks.BREWING_STAND)
          .put(Mat.CAULDRON, Blocks.WATER_CAULDRON)
          .put(Mat.JUKEBOX, Blocks.JUKEBOX)
-         .put(Mat.BEEHIVE, Blocks.BEEHIVE);
+         .put(Mat.BEEHIVE, Blocks.BEEHIVE)
+         .put(Mat.PAINTING, Blocks.AIR); // Paintings are entities, placed dynamically
     }
 
     /**
