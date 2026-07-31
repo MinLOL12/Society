@@ -31,4 +31,7 @@ public final class EngineConfig {
 
     /** Maximum non-major announcements from one settlement per day. */
     public int dailyAnnouncementBudget = 4;
+
+    /** Settlements plan and raise real buildings as they grow. */
+    public boolean buildStructures = true;
 }

@@ -231,7 +231,8 @@ public final class DiplomacySystem {
     }
 
     private static int warPower(SocietyEngine engine, Settlement s) {
-        double guards = s.professionCount(SimProfession.GUARD) * s.tech().guardModifier();
+        double guards = s.professionCount(SimProfession.GUARD) * s.tech().guardModifier()
+                + s.buildingDefence() * 0.5;
         return (int) (guards * 3 + s.cachedPopulation() * 0.12 + engine.random().nextInt(4));
     }
 

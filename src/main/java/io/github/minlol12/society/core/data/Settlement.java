@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 
+import io.github.minlol12.society.core.build.StructureType;
 import io.github.minlol12.society.core.io.Compound;
 import io.github.minlol12.society.core.types.Good;
 import io.github.minlol12.society.core.types.SettlementTier;
@@ -29,7 +30,9 @@ public final class Settlement {
     private final EnumMap<Good, Double> stockpile = new EnumMap<Good, Double>(Good.class);
     private double treasury;
     private final TechState tech = new TechState();
-    private double housingBuilt;
+    private final List<Building> buildings = new ArrayList<Building>();
+    /** What the town wants to build next but cannot yet pay for. */
+    private StructureType blockedBuild;
     private final List<String> citizenIds = new ArrayList<String>();
     private final List<ChronicleEntry> chronicle = new ArrayList<ChronicleEntry>();
     private int lastFestivalSeasonIndex = -1;
@@ -122,13 +125,110 @@ public final class Settlement {
 
     public TechState tech() { return tech; }
 
-    /** Extra housing raised by builders, on top of the tier baseline. */
-    public double housingBuilt() { return housingBuilt; }
+    // --- Buildings -------------------------------------------------------
 
-    public void addHousing(double delta) { this.housingBuilt = Math.max(0.0, housingBuilt + delta); }
+    /** Every plot this settlement has claimed, finished or still rising. */
+    public List<Building> buildings() { return buildings; }
 
+    public StructureType blockedBuild() { return blockedBuild; }
+
+    public void setBlockedBuild(StructureType type) { this.blockedBuild = type; }
+
+    public List<Building> completedBuildings() {
+        List<Building> out = new ArrayList<Building>();
+        for (Building b : buildings) {
+            if (b.isComplete() && !b.isRuined()) out.add(b);
+        }
+        return out;
+    }
+
+    public List<Building> sitesUnderConstruction() {
+        List<Building> out = new ArrayList<Building>();
+        for (Building b : buildings) {
+            if (!b.isComplete() && !b.isRuined()) out.add(b);
+        }
+        return out;
+    }
+
+    public int countBuildings(StructureType type) {
+        int count = 0;
+        for (Building b : buildings) {
+            if (b.type() == type && b.isComplete() && !b.isRuined()) count++;
+        }
+        return count;
+    }
+
+    public boolean has(StructureType type) {
+        return countBuildings(type) > 0;
+    }
+
+    /**
+     * Beds standing in finished houses. This <em>is</em> the settlement's
+     * housing: no beds, no room to grow, however large the tier.
+     */
+    public int bedCapacity() {
+        int beds = 2; // bedrolls around the first campfire
+        for (Building b : buildings) {
+            if (b.isComplete() && !b.isRuined()) beds += b.type().beds();
+        }
+        return beds;
+    }
+
+    /** Kept as the name the rest of the simulation asks for. */
     public int housingCapacity() {
-        return tier.housingBase() + (int) housingBuilt;
+        return bedCapacity();
+    }
+
+    /** Sum of a bonus across every finished building. */
+    private double buildingSum(BonusKind kind, Good good) {
+        double sum = 0.0;
+        for (Building b : buildings) {
+            if (!b.isComplete() || b.isRuined()) continue;
+            StructureType t = b.type();
+            switch (kind) {
+                case PRODUCTION: sum += t.productionBonus(good); break;
+                case DEFENCE: sum += t.defenceBonus(); break;
+                case MORALE: sum += t.moraleBonus(); break;
+                case RESEARCH: sum += t.researchBonus(); break;
+                case TRADE: sum += t.tradeBonus(); break;
+                case HEALTH: sum += t.healthBonus(); break;
+                case STORAGE: sum += t.storageBonus(); break;
+                default: break;
+            }
+        }
+        return sum;
+    }
+
+    private enum BonusKind { PRODUCTION, DEFENCE, MORALE, RESEARCH, TRADE, HEALTH, STORAGE }
+
+    /** Multiplier on daily output of a good from workshops that stand. */
+    public double buildingProductionModifier(Good good) {
+        return 1.0 + buildingSum(BonusKind.PRODUCTION, good);
+    }
+
+    public double buildingDefence() {
+        return buildingSum(BonusKind.DEFENCE, null);
+    }
+
+    public double buildingMorale() {
+        return buildingSum(BonusKind.MORALE, null);
+    }
+
+    public double buildingResearchModifier() {
+        return 1.0 + buildingSum(BonusKind.RESEARCH, null);
+    }
+
+    public double buildingTradeModifier() {
+        return 1.0 + buildingSum(BonusKind.TRADE, null);
+    }
+
+    /** Below 1.0: buildings that keep people alive longer. */
+    public double buildingHealthModifier() {
+        return Math.max(0.4, 1.0 - buildingSum(BonusKind.HEALTH, null));
+    }
+
+    public double buildingStorage() {
+        return buildingSum(BonusKind.STORAGE, null);
     }
 
     public List<String> citizenIds() { return citizenIds; }
@@ -223,9 +323,9 @@ public final class Settlement {
         }
     }
 
-    /** Hard capacity for one kind of good. */
+    /** Hard capacity for one kind of good, widened by granaries and barns. */
     public double storageCap(Good good) {
-        return Math.max(1, cachedPopulation) * tier().storagePerCapita();
+        return Math.max(1, cachedPopulation) * (tier().storagePerCapita() + buildingStorage());
     }
 
     /**
@@ -267,7 +367,6 @@ public final class Settlement {
                 .put("tier", tier.name())
                 .put("treasury", treasury)
                 .put("tech", tech.save())
-                .put("housing", housingBuilt)
                 .put("lastFestival", lastFestivalSeasonIndex)
                 .put("famineDays", famineDays)
                 .put("morale", morale)
@@ -286,6 +385,9 @@ public final class Settlement {
         List<Compound> entries = new ArrayList<Compound>();
         for (ChronicleEntry e : chronicle) entries.add(e.save());
         c.putCompoundList("chronicle", entries);
+        List<Compound> plots = new ArrayList<Compound>();
+        for (Building b : buildings) plots.add(b.save());
+        c.putCompoundList("buildings", plots);
         return c;
     }
 
@@ -305,7 +407,6 @@ public final class Settlement {
         } catch (IllegalArgumentException ignored) { }
         s.treasury = c.getDouble("treasury", 0.0);
         s.tech.copyFrom(TechState.load(c.getCompound("tech")));
-        s.housingBuilt = c.getDouble("housing", 0.0);
         s.lastFestivalSeasonIndex = c.getInt("lastFestival", -1);
         s.famineDays = c.getInt("famineDays", 0);
         s.morale = c.getDouble("morale", 60.0);
@@ -321,6 +422,10 @@ public final class Settlement {
         }
         for (Compound entry : c.getCompoundList("chronicle")) {
             s.chronicle.add(ChronicleEntry.load(entry));
+        }
+        for (Compound plot : c.getCompoundList("buildings")) {
+            Building b = Building.load(plot);
+            if (b != null) s.buildings.add(b);
         }
         return s;
     }

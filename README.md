@@ -2,9 +2,12 @@
 
 **Villagers wake up.** Society turns Minecraft's villagers from passive
 trading kiosks into people - with personalities, families, jobs that emerge
-from real needs, settlements that grow from campfires into cities, markets,
-research, cultures, diplomacy, politics, and a written history of everything
-that ever happened.
+from real needs, and settlements that **physically build themselves** from a
+campfire circle into a city, block by block, while you watch.
+
+Click any villager to open their full stat sheet. Walk away for a week and
+come back to find new houses, a granary, a marketplace and a watchtower that
+weren't there before - raised by builders, paid for in real timber and stone.
 
 Server-side mod for **Minecraft 1.20.1 + Fabric**. Vanilla clients can join
 a Society server without installing anything.
@@ -27,8 +30,14 @@ Minecraft class, so it runs (and is tested) headlessly.
 
 Every villager you meet becomes a recorded citizen with a name, an age, a
 reputation, personal wealth, up to eight vivid memories, and skills that
-grow with practice. Tap one with the **Society Chronicle** to read their
-personal page.
+grow with practice.
+
+**Click a villager to open their page** - a full screen showing who they
+are, their work and workplace, their temperament as eight labelled gauges,
+every skill they have learned, their family tree, their standing in town,
+and what they remember. Sneak-click with an empty hand, or right-click
+holding the **Society Chronicle**. It is drawn entirely with vanilla items,
+so it works on an unmodified client.
 
 ### 2. Personalities
 
@@ -54,16 +63,44 @@ builders and lumberjacks, research for scholars, threats for guards. Each
 day a few citizens are matched to the most-needed work they have an
 aptitude for. Elders retire; crises retrain people into food work.
 
-### 5. Settlements grow
+### 5. Settlements really build
 
-Clusters of villagers with beds and a meeting place are found as a
-settlement and named after their land's folk. Population, housing, stock
-and threats feed a tier ladder:
+This is not a counter going up. Each day a settlement works out what it most
+needs - a roof, a field, a forge, a wall - stakes out a plot for it, pays for
+it out of its own timber and stone, and puts its builders on the site. The
+world places the blocks course by course as the work is done, so you can
+stand in a village and watch a house go up over several days.
+
+There are **55 structures** across seven purposes:
+
+| Purpose | Buildings |
+| --- | --- |
+| Civic | Well, Bell Plaza, Notice Board, Meeting Hall, Town Hall, Fountain, Public Garden, Graveyard |
+| Housing | Lean-to Shelter, Cottage, Family House, Longhouse, Townhouse, Manor |
+| Food | Farm Plot, Great Field, Orchard, Animal Pen, Barn, Granary, Windmill, Bakery, Apiary, Fishing Hut |
+| Industry | Lumber Camp, Sawmill, Mine Head, Quarry, Smithy, Foundry, Carpenter, Mason's Yard, Weaver, Tannery, Pottery Kiln, Brewery |
+| Trade | Market Stall, Marketplace, Warehouse, Trading Post, Inn, Stable, Dock |
+| Knowledge | Shrine, Library, School, Apothecary, Infirmary, Observatory, Bathhouse |
+| Defence | Guard Post, Watchtower, Barracks, Gatehouse, Wall |
+
+Every one of them **does something**. A sawmill means more planks; a library
+means faster research; a granary widens the stores; a fountain lifts spirits;
+a watchtower adds to the town's defence; an infirmary means fewer deaths.
+Nothing in the catalogue is scenery.
+
+Crucially, **housing is now the beds that actually exist**. A settlement can
+only grow as far as it has built houses to sleep in, so the tier ladder -
 
 **Camp → Hamlet → Village → Town → City**
 
-Tiers expand housing and storage capacity, change the government, and make
-history when reached.
+is something a town has to earn with timber and labour, not something that
+happens to it. Buildings are laid out in real culture styles too: the same
+cottage blueprint becomes a mossy log lodge among the Woodfolk, a granite
+hall among the Stonefolk and a flat-roofed sandstone house among the
+Sandfolk.
+
+Fire and war leave real ruins, and the builders have to come back and raise
+them again.
 
 ### 6. A living economy
 
@@ -120,10 +157,14 @@ with the world. Right-click anywhere with the Society Chronicle to read it.
 
 Craft: **book + emerald** (shapeless).
 
-* Right-click air/ground → the page of the settlement holding this land
-  (or the world chronicle in the wilderness).
-* Right-click a villager → that person's page: age, work, personality,
-  family, wealth, reputation, and what they remember.
+* Right-click air/ground → the settlement page: population, stores, every
+  building standing, everything under construction and how far along it is,
+  what the town is waiting on materials for, government, culture, known
+  arts, neighbours and its chronicle.
+* Right-click a villager → their personal page.
+
+You do not need the Chronicle to read people: **sneak-click any villager
+with an empty hand** and their page opens.
 
 ## Commands
 
@@ -137,6 +178,7 @@ Craft: **book + emerald** (shapeless).
 /society settlement <name> culture      folk, styles, festival, accumulated facts
 /society settlement <name> diplomacy    regards, treaties, trade, wars
 /society settlement <name> government   ruler, laws, council
+/society settlement <name> buildings    what stands, what is rising, what is blocked
 /society villager <entity>              a person's own page (entity selector)
 /society history [count]                last entries of the world chronicle
 ```
@@ -158,6 +200,9 @@ Craft: **book + emerald** (shapeless).
 | `announcements` | true | enable `[Society]` chat announcements |
 | `announcementRadius` | 160 | radius for local announcements |
 | `dailyAnnouncementBudget` | 4 | max local announcements per settlement per day |
+| `buildStructures` | true | settlements plan and raise real buildings |
+| `villagerScreen` | true | clicking a villager opens the stat screen (false = chat text) |
+| `sneakToInspect` | true | sneak-click with an empty hand to open a villager's page |
 
 ## Build
 
@@ -179,7 +224,21 @@ java -cp build/classes/java/main io.github.minlol12.society.core.headless.Headle
 ```
 
 runs a 400-day, three-settlement scenario with save/load round-trips and a
-strict determinism check - handy for tuning and regression testing.
+strict determinism check - handy for tuning and regression testing. It
+asserts that the towns really build: that buildings of several kinds go up,
+that houses supply the beds people sleep in, and that housing capacity is
+exactly the beds that exist.
+
+The building catalogue has its own audit:
+
+```
+java -cp build/classes/java/main io.github.minlol12.society.core.headless.BlueprintAudit
+```
+
+which checks every one of the 55 blueprints - that each fits its plot, that
+anything enclosed has a door, a roof and light, that houses contain the beds
+they promise, that workshops contain a workstation, and that a settlement of
+each size can plan enough beds for its people.
 
 ## Credit
 

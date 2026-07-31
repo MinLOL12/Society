@@ -15,11 +15,14 @@ import io.github.minlol12.society.core.SpawnRequest;
 import io.github.minlol12.society.core.VillagerSnapshot;
 import io.github.minlol12.society.core.data.Citizen;
 import io.github.minlol12.society.core.data.Settlement;
+import io.github.minlol12.society.gui.CitizenScreen;
+import io.github.minlol12.society.gui.SettlementScreen;
 import io.github.minlol12.society.item.SocietyItems;
 import io.github.minlol12.society.state.SocietyPersistentState;
 import io.github.minlol12.society.world.CultureSamplerImpl;
 import io.github.minlol12.society.world.DeathCauses;
 import io.github.minlol12.society.world.VillagerTracker;
+import io.github.minlol12.society.world.build.ConstructionRenderer;
 
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
@@ -64,6 +67,8 @@ public final class SocietyManager {
     private final Set<UUID> loadedVillagers = new HashSet<UUID>();
     /** Entity uuid -> citizen id for villagers the engine asked us to manifest. */
     private final Map<UUID, String> pendingManifests = new HashMap<UUID, String>();
+    /** Lays the ledger's building sites into real blocks, a course at a time. */
+    private final ConstructionRenderer construction;
     private int lastProcessedDay = -1;
 
     private SocietyManager(MinecraftServer server) {
@@ -77,6 +82,7 @@ public final class SocietyManager {
         if (state.hasData()) {
             engine.load(state.data());
         }
+        this.construction = new ConstructionRenderer(overworld, engine);
     }
 
     public static SocietyManager get() {
@@ -119,8 +125,16 @@ public final class SocietyManager {
         });
         ServerLivingEntityEvents.AFTER_DEATH.register(SocietyManager::onAfterDeath);
         UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            if (!(entity instanceof VillagerEntity)
-                    || !player.getStackInHand(hand).isOf(SocietyItems.SOCIETY_CHRONICLE)) {
+            if (!(entity instanceof VillagerEntity)) {
+                return ActionResult.PASS;
+            }
+            // Sneaking with an empty hand, or holding the Chronicle, opens
+            // the villager's page. Ordinary right-clicks still trade.
+            boolean chronicle = player.getStackInHand(hand).isOf(SocietyItems.SOCIETY_CHRONICLE);
+            boolean inspectGesture = chronicle
+                    || (player.isSneaking() && player.getStackInHand(hand).isEmpty()
+                        && SocietyMod.config().sneakToInspect);
+            if (!inspectGesture) {
                 return ActionResult.PASS;
             }
             if (world.isClient) {
@@ -139,6 +153,13 @@ public final class SocietyManager {
     // =====================================================================
 
     private void tick() {
+        // Blocks go up continuously, not only on the day boundary: this is
+        // what makes growth something you watch rather than something you
+        // come back to find finished.
+        if (SocietyMod.config().buildStructures) {
+            construction.tick();
+        }
+
         int day = (int) (overworld.getTimeOfDay() / 24000L);
         if (day == lastProcessedDay) {
             return;
@@ -269,14 +290,36 @@ public final class SocietyManager {
         int x = (int) Math.floor(player.getX());
         int z = (int) Math.floor(player.getZ());
         Settlement settlement = engine.findSettlementNear(x, z, 96);
-        SocietyText.printSettlementPage(player, engine, settlement);
+        if (SocietyMod.config().villagerScreen) {
+            SettlementScreen.open(player, engine, settlement);
+        } else {
+            SocietyText.printSettlementPage(player, engine, settlement);
+        }
     }
 
-    /** The chronicle's right-click on a villager: their personal page. */
+    /**
+     * Clicking a villager: opens their stat page. Any citizen the ledger
+     * has not met yet is written into it first, so the screen is never
+     * empty just because a villager wandered in from the wild.
+     */
     public void inspectCitizen(ServerPlayerEntity player, VillagerEntity villager) {
         Citizen citizen = engine.citizenForEntity(villager.getUuidAsString());
-        SocietyText.printCitizenCard(player, engine, citizen,
-                villager.getVillagerData().getProfession().toString());
+        if (citizen == null && villager.isAlive()) {
+            citizen = engine.citizenForSnapshot(
+                    VillagerTracker.snapshot(villager, overworld), sampler);
+            loadedVillagers.add(villager.getUuid());
+        }
+        String profession = "";
+        net.minecraft.util.Identifier id = net.minecraft.registry.Registries.VILLAGER_PROFESSION
+                .getId(villager.getVillagerData().getProfession());
+        if (id != null) {
+            profession = id.toString();
+        }
+        if (SocietyMod.config().villagerScreen) {
+            CitizenScreen.open(player, engine, citizen, profession);
+        } else {
+            SocietyText.printCitizenCard(player, engine, citizen, profession);
+        }
     }
 
     public ServerWorld overworld() {

@@ -348,6 +348,34 @@ public final class HeadlessSimulation {
         result.failures += check("generations: children born", children >= 1);
         result.failures += check("settlement grew beyond camp", maxTier >= 1);
         result.failures += check("technology discovered somewhere", techUnlocked >= 1);
+
+        // --- Construction: the towns must physically build themselves -----
+        int buildingsStanding = 0;
+        int distinctTypes = 0;
+        int bedsFromHouses = 0;
+        boolean anyWorkshop = false;
+        java.util.Set<io.github.minlol12.society.core.build.StructureType> seenTypes =
+                new java.util.HashSet<io.github.minlol12.society.core.build.StructureType>();
+        for (Settlement s : engine.settlements().values()) {
+            for (io.github.minlol12.society.core.data.Building b : s.completedBuildings()) {
+                buildingsStanding++;
+                seenTypes.add(b.type());
+                bedsFromHouses += b.type().beds();
+                if (b.type().worksite() != io.github.minlol12.society.core.types.SimProfession.NONE) {
+                    anyWorkshop = true;
+                }
+            }
+        }
+        distinctTypes = seenTypes.size();
+        result.failures += check("settlements raised real buildings", buildingsStanding >= 6);
+        result.failures += check("buildings of several kinds", distinctTypes >= 4);
+        result.failures += check("houses provide the beds people sleep in", bedsFromHouses >= 2);
+        result.failures += check("someone built a place to work", anyWorkshop);
+        boolean housingTracksBeds = true;
+        for (Settlement s : engine.settlements().values()) {
+            if (s.housingCapacity() != s.bedCapacity()) housingTracksBeds = false;
+        }
+        result.failures += check("housing is exactly the beds that exist", housingTracksBeds);
         result.failures += check("ties between settlements", !engine.relations().isEmpty());
         boolean anyPact = false;
         for (DiplomaticRelation r : engine.relations()) {
@@ -510,7 +538,9 @@ public final class HeadlessSimulation {
                     .append(s.lastFestivalSeasonIndex()).append('|')
                     .append(s.famineDays()).append('|')
                     .append(String.format("%.2f", s.threatLevel())).append('|')
-                    .append(String.format("%.2f", s.housingBuilt())).append('|')
+                    .append(s.bedCapacity()).append('|')
+                    .append(s.buildings().size()).append('|')
+                    .append(s.completedBuildings().size()).append('|')
                     .append(s.culture().facts().size()).append('|')
                     .append(String.format("%.2f", totalStockExceptFood(s))).append('|')
                     .append(String.format("%.2f", techProgressSum(s)));

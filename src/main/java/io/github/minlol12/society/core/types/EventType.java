@@ -31,6 +31,9 @@ public enum EventType {
     DISCOVERY(Level.LOCAL),
     CULTURE(Level.LOCAL),
 
+    CONSTRUCTION_START(Level.MEMORY),
+    CONSTRUCTION(Level.LOCAL),
+
     TRADE_PACT(Level.LOCAL),
     TRADE_ROUTE(Level.LOCAL),
     ALLIANCE(Level.GLOBAL),

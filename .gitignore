@@ -1,9 +1,12 @@
 # gradle
+# Anchored to the repo root so they only match Gradle's own output - an
+# unanchored "build/" would also swallow src/.../core/build/, which is
+# source code, not artefacts.
 
-.gradle/
-build/
-out/
-classes/
+/.gradle/
+/build/
+/out/
+/classes/
 
 # loom
 
@@ -26,7 +29,7 @@ remappedSrc/
 .classpath
 .project
 .settings/
-bin/
+/bin/
 
 # macos
 

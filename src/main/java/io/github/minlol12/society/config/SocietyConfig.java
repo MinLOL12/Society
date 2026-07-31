@@ -30,6 +30,13 @@ public final class SocietyConfig {
     public int announcementRadius = 160;
     public int dailyAnnouncementBudget = 4;
 
+    /** Settlements raise real buildings in the world as they grow. */
+    public boolean buildStructures = true;
+    /** Clicking a villager opens the stat screen instead of chat text. */
+    public boolean villagerScreen = true;
+    /** Sneak-click a villager with an empty hand to open their page. */
+    public boolean sneakToInspect = true;
+
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     public static SocietyConfig loadOrCreate() {
@@ -75,6 +82,7 @@ public final class SocietyConfig {
         engine.announcements = announcements;
         engine.announcementRadius = Math.max(16, announcementRadius);
         engine.dailyAnnouncementBudget = Math.max(1, dailyAnnouncementBudget);
+        engine.buildStructures = buildStructures;
         return engine;
     }
 }
