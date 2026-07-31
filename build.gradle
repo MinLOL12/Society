@@ -33,6 +33,9 @@ dependencies {
 	// Only needed at runtime; no CTOV classes are compiled against – the loader
 	// discovers CTOV NBT structures via the "ctov" namespace if the mod is present.
 	modRuntimeOnly "curse.maven:choicetheorems-overhauled-village-623908:6459787"
+
+	// Lithostitched (file 6742616) - runtime library dependency required by CTOV on Fabric 1.20.1.
+	modRuntimeOnly "curse.maven:lithostitched-936015:6742616"
 }
 
 processResources {
