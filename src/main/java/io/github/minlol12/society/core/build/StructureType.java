@@ -37,6 +37,8 @@ public enum StructureType {
             9, 7, 0, 18, 12, 0),
     GRAVEYARD("Graveyard", Category.CIVIC, SettlementTier.HAMLET, null,
             9, 7, 0, 12, 24, 0),
+    JAIL("Jail", Category.CIVIC, SettlementTier.HAMLET, null,
+            9, 8, 4, 40, 60, 10),
 
     // =====================================================================
     // Housing
@@ -160,7 +162,9 @@ public enum StructureType {
     GATEHOUSE("Gatehouse", Category.DEFENCE, SettlementTier.TOWN, TechNode.STONEMASONRY,
             9, 10, 0, 40, 140, 0),
     WALL_SEGMENT("Wall", Category.DEFENCE, SettlementTier.CITY, TechNode.STONEMASONRY,
-            11, 7, 0, 12, 120, 0);
+            11, 7, 0, 12, 120, 0),
+    MILITARY_BASE("Military Base", Category.DEFENCE, SettlementTier.HAMLET, null,
+            15, 8, 8, 80, 80, 20);
 
     /** Broad purpose, used by the planner and by the settlement report. */
     public enum Category { CIVIC, HOUSING, FOOD, INDUSTRY, TRADE, KNOWLEDGE, DEFENCE }
@@ -239,6 +243,8 @@ public enum StructureType {
             case BARRACKS: return 4.0;
             case GATEHOUSE: return 3.0;
             case WALL_SEGMENT: return 1.5;
+            case MILITARY_BASE: return 6.0;
+            case JAIL: return 0.5;
             default: return 0.0;
         }
     }
@@ -377,6 +383,8 @@ public enum StructureType {
             case WATCHTOWER:
             case BARRACKS:
             case GATEHOUSE:
+            case MILITARY_BASE:
+            case JAIL:
                 return SimProfession.GUARD;
             case TOWN_HALL:
             case MEETING_HALL:
@@ -400,6 +408,7 @@ public enum StructureType {
             case WATCHTOWER:
             case GATEHOUSE:
             case WALL_SEGMENT:
+            case MILITARY_BASE:
             case TANNERY:
             case DOCK:
             case FISHING_HUT:
@@ -438,6 +447,8 @@ public enum StructureType {
             case BREWERY:
             case INN:
             case DOCK:
+            case JAIL:
+            case MILITARY_BASE:
                 return true;
             default:
                 return false;
@@ -461,6 +472,7 @@ public enum StructureType {
             case FOUNTAIN: return t >= SettlementTier.TOWN.ordinal() ? 1 : 0;
             case GARDEN: return Math.min(2, population / 24);
             case GRAVEYARD: return t >= SettlementTier.HAMLET.ordinal() ? 1 : 0;
+            case JAIL: return t >= SettlementTier.HAMLET.ordinal() ? 1 : 0;
 
             // --- Housing: enough beds for everyone, plus a little room ---
             // Cottages are the workhorse and are never tier-gated: a crowded
@@ -522,6 +534,7 @@ public enum StructureType {
             case BARRACKS: return t >= SettlementTier.TOWN.ordinal() ? 1 : 0;
             case GATEHOUSE: return t >= SettlementTier.TOWN.ordinal() ? Math.min(2, 1 + population / 40) : 0;
             case WALL_SEGMENT: return t >= SettlementTier.CITY.ordinal() ? Math.min(8, 4 + population / 20) : 0;
+            case MILITARY_BASE: return t >= SettlementTier.HAMLET.ordinal() ? 1 : 0;
 
             default: return 0;
         }

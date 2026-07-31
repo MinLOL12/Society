@@ -38,6 +38,7 @@ public final class Blueprints {
             case FOUNTAIN: return fountain();
             case GARDEN: return garden();
             case GRAVEYARD: return graveyard();
+            case JAIL: return jail();
 
             case SHELTER: return shelter();
             case COTTAGE: return cottage();
@@ -91,6 +92,7 @@ public final class Blueprints {
             case BARRACKS: return barracks();
             case GATEHOUSE: return gatehouse();
             case WALL_SEGMENT: return wallSegment();
+            case MILITARY_BASE: return militaryBase();
             default: return cottage();
         }
     }
@@ -122,8 +124,9 @@ public final class Blueprints {
 
         // Door on the south face (-Z), centred.
         int doorX = w / 2;
-        bp.set(doorX, 1, 0, Mat.DOOR);
-        bp.set(doorX, 2, 0, Mat.AIR);
+        bp.set(doorX, 1, 0, Mat.FLOOR);
+        bp.set(doorX, 2, 0, Mat.DOOR);
+        bp.set(doorX, 3, 0, Mat.AIR);
         bp.set(doorX, wallHeight, 0, Mat.WALL_ACCENT);
 
         // Windows: skip the corners and the doorway.
@@ -234,8 +237,9 @@ public final class Blueprints {
             bp.set(x, 2, 0, Mat.PILLAR);
             bp.set(x, 3, 0, Mat.PILLAR);
         }
-        bp.set(6, 1, 0, Mat.DOOR);
-        bp.set(6, 2, 0, Mat.AIR);
+        bp.set(6, 1, 0, Mat.FLOOR);
+        bp.set(6, 2, 0, Mat.DOOR);
+        bp.set(6, 3, 0, Mat.AIR);
         // Council chamber: a ring of seats around a speaker's lectern.
         bp.set(6, 2, 5, Mat.LECTERN);
         for (int x = 3; x <= 9; x += 2) {
@@ -466,8 +470,9 @@ public final class Blueprints {
         for (int x = 4; x <= 8; x += 2) {
             bp.fill(x, 1, 0, x, 4, 0, Mat.PILLAR);
         }
-        bp.set(6, 1, 0, Mat.DOOR);
-        bp.set(6, 2, 0, Mat.AIR);
+        bp.set(6, 1, 0, Mat.FLOOR);
+        bp.set(6, 2, 0, Mat.DOOR);
+        bp.set(6, 3, 0, Mat.AIR);
         // Great hall: long table, hearths at both ends.
         for (int z = 4; z <= 7; z++) {
             bp.set(6, 2, z, Mat.TABLE);
@@ -507,12 +512,16 @@ public final class Blueprints {
     private static Blueprint farmPlot() {
         Blueprint bp = new Blueprint(StructureType.FARM_PLOT, 9, 3, 9);
         bp.fill(0, 0, 0, 8, 0, 8, Mat.DIRT);
-        // Four beds of crops around a watered cross.
-        bp.fill(4, 0, 0, 4, 0, 8, Mat.WATER);
-        bp.fill(0, 0, 4, 8, 0, 4, Mat.WATER);
+        // Four beds of crops around a watered cross, contained inside dirt borders.
+        bp.fill(4, 0, 1, 4, 0, 7, Mat.WATER);
+        bp.fill(1, 0, 4, 7, 0, 4, Mat.WATER);
+        bp.set(4, 0, 0, Mat.DIRT);
+        bp.set(4, 0, 8, Mat.DIRT);
+        bp.set(0, 0, 4, Mat.DIRT);
+        bp.set(8, 0, 4, Mat.DIRT);
         for (int x = 0; x <= 8; x++) {
             for (int z = 0; z <= 8; z++) {
-                if (x == 4 || z == 4) continue;
+                if ((x == 4 && z >= 1 && z <= 7) || (z == 4 && x >= 1 && x <= 7)) continue;
                 bp.set(x, 0, z, Mat.FARMLAND);
                 bp.set(x, 1, z, Mat.CROP);
             }
@@ -529,13 +538,15 @@ public final class Blueprints {
     private static Blueprint greatField() {
         Blueprint bp = new Blueprint(StructureType.GREAT_FIELD, 15, 4, 13);
         bp.fill(0, 0, 0, 14, 0, 12, Mat.DIRT);
-        // Irrigation channels every fourth row.
+        // Irrigation channels every fourth row, contained inside borders.
         for (int z = 2; z <= 10; z += 4) {
-            bp.fill(0, 0, z, 14, 0, z, Mat.WATER);
+            bp.fill(1, 0, z, 13, 0, z, Mat.WATER);
+            bp.set(0, 0, z, Mat.DIRT);
+            bp.set(14, 0, z, Mat.DIRT);
         }
         for (int x = 0; x <= 14; x++) {
             for (int z = 0; z <= 12; z++) {
-                if ((z - 2) % 4 == 0 && z >= 2 && z <= 10) continue;
+                if ((z - 2) % 4 == 0 && z >= 2 && z <= 10 && x >= 1 && x <= 13) continue;
                 bp.set(x, 0, z, Mat.FARMLAND);
                 bp.set(x, 1, z, Mat.CROP);
             }
@@ -594,10 +605,12 @@ public final class Blueprints {
     private static Blueprint barn() {
         Blueprint bp = house(StructureType.BARN, 11, 9, 6, false, true);
         // Wide double doors instead of one.
-        bp.set(5, 1, 0, Mat.DOOR);
-        bp.set(6, 1, 0, Mat.DOOR);
-        bp.set(5, 2, 0, Mat.AIR);
-        bp.set(6, 2, 0, Mat.AIR);
+        bp.set(5, 1, 0, Mat.FLOOR);
+        bp.set(6, 1, 0, Mat.FLOOR);
+        bp.set(5, 2, 0, Mat.DOOR);
+        bp.set(6, 2, 0, Mat.DOOR);
+        bp.set(5, 3, 0, Mat.AIR);
+        bp.set(6, 3, 0, Mat.AIR);
         // Stalls down one side, hay loft above.
         for (int z = 2; z <= 6; z += 2) {
             bp.set(1, 2, z, Mat.FENCE);
@@ -653,8 +666,9 @@ public final class Blueprints {
             bp.set(6, y, 6, Mat.SKIP);
         }
         bp.fill(3, 1, 3, 5, 5, 5, Mat.AIR);
-        bp.set(4, 1, 2, Mat.DOOR);
-        bp.set(4, 2, 2, Mat.AIR);
+        bp.set(4, 1, 2, Mat.FLOOR);
+        bp.set(4, 2, 2, Mat.DOOR);
+        bp.set(4, 3, 2, Mat.AIR);
         bp.set(3, 3, 2, Mat.WINDOW);
         bp.set(5, 3, 2, Mat.WINDOW);
         bp.set(4, 3, 6, Mat.WINDOW);
@@ -720,8 +734,9 @@ public final class Blueprints {
         for (int z = 8; z <= 8; z++) {
             bp.fill(3, 1, z, 5, 1, z, Mat.SLAB);
         }
-        bp.set(4, 1, 7, Mat.DOOR);
-        bp.set(4, 2, 7, Mat.AIR);
+        bp.set(4, 1, 7, Mat.FLOOR);
+        bp.set(4, 2, 7, Mat.DOOR);
+        bp.set(4, 3, 7, Mat.AIR);
         bp.set(1, 2, 6, Mat.BARREL);
         bp.set(2, 2, 6, Mat.BARREL);
         bp.set(7, 2, 6, Mat.SMOKER);
@@ -766,10 +781,12 @@ public final class Blueprints {
     private static Blueprint sawmill() {
         Blueprint bp = house(StructureType.SAWMILL, 11, 9, 5, false, true);
         // Big working doorway.
-        bp.set(4, 1, 0, Mat.DOOR);
-        bp.set(6, 1, 0, Mat.DOOR);
-        bp.set(4, 2, 0, Mat.AIR);
-        bp.set(6, 2, 0, Mat.AIR);
+        bp.set(4, 1, 0, Mat.FLOOR);
+        bp.set(6, 1, 0, Mat.FLOOR);
+        bp.set(4, 2, 0, Mat.DOOR);
+        bp.set(6, 2, 0, Mat.DOOR);
+        bp.set(4, 3, 0, Mat.AIR);
+        bp.set(6, 3, 0, Mat.AIR);
         // The saw bench down the centre, timber stacked either side.
         for (int z = 3; z <= 6; z++) {
             bp.set(5, 2, z, Mat.SLAB);
@@ -1048,10 +1065,12 @@ public final class Blueprints {
 
     private static Blueprint warehouse() {
         Blueprint bp = house(StructureType.WAREHOUSE, 11, 9, 6, true, false);
-        bp.set(4, 1, 0, Mat.DOOR);
-        bp.set(6, 1, 0, Mat.DOOR);
-        bp.set(4, 2, 0, Mat.AIR);
-        bp.set(6, 2, 0, Mat.AIR);
+        bp.set(4, 1, 0, Mat.FLOOR);
+        bp.set(6, 1, 0, Mat.FLOOR);
+        bp.set(4, 2, 0, Mat.DOOR);
+        bp.set(6, 2, 0, Mat.DOOR);
+        bp.set(4, 3, 0, Mat.AIR);
+        bp.set(6, 3, 0, Mat.AIR);
         // Aisles of crates two high, with a walkway down the middle.
         for (int x = 1; x <= 9; x++) {
             if (x == 5) continue;
@@ -1305,8 +1324,9 @@ public final class Blueprints {
         bp.hollow(0, 1, 0, 8, 4, 8);
         bp.fill(1, 1, 1, 7, 1, 7, Mat.FLOOR);
         bp.corners(0, 0, 8, 8, 1, 4, Mat.PILLAR);
-        bp.set(4, 1, 0, Mat.DOOR);
-        bp.set(4, 2, 0, Mat.AIR);
+        bp.set(4, 1, 0, Mat.FLOOR);
+        bp.set(4, 2, 0, Mat.DOOR);
+        bp.set(4, 3, 0, Mat.AIR);
         bp.set(2, 3, 0, Mat.WINDOW);
         bp.set(6, 3, 0, Mat.WINDOW);
         bp.set(2, 2, 6, Mat.BOOKSHELF);
@@ -1373,8 +1393,9 @@ public final class Blueprints {
         bp.walls(0, 0, 4, 4, 1, 3, Mat.WALL);
         bp.hollow(0, 1, 0, 4, 3, 4);
         bp.corners(0, 0, 4, 4, 1, 3, Mat.PILLAR);
-        bp.set(2, 1, 0, Mat.DOOR);
-        bp.set(2, 2, 0, Mat.AIR);
+        bp.set(2, 1, 0, Mat.FLOOR);
+        bp.set(2, 2, 0, Mat.DOOR);
+        bp.set(2, 3, 0, Mat.AIR);
         bp.set(0, 2, 2, Mat.BARS);
         bp.set(4, 2, 2, Mat.BARS);
         bp.set(2, 2, 4, Mat.BARS);
@@ -1405,8 +1426,9 @@ public final class Blueprints {
         bp.walls(1, 1, 5, 5, 1, 3, Mat.WALL);
         bp.hollow(1, 1, 1, 5, 3, 5);
         bp.fill(2, 1, 2, 4, 1, 4, Mat.FLOOR);
-        bp.set(3, 1, 1, Mat.DOOR);
-        bp.set(3, 2, 1, Mat.AIR);
+        bp.set(3, 1, 1, Mat.FLOOR);
+        bp.set(3, 2, 1, Mat.DOOR);
+        bp.set(3, 3, 1, Mat.AIR);
         bp.corners(1, 1, 5, 5, 1, 3, Mat.PILLAR);
         // Shaft.
         for (int y = 4; y <= 9; y++) {
@@ -1530,6 +1552,33 @@ public final class Blueprints {
         bp.set(1, 2, 1, Mat.LADDER);
         bp.set(1, 3, 1, Mat.LADDER);
         bp.set(1, 3, 1, Mat.LADDER);
+        return bp;
+    }
+
+    private static Blueprint jail() {
+        Blueprint bp = house(StructureType.JAIL, 9, 8, 4, true, true);
+        bp.fill(2, 2, 3, 6, 3, 3, Mat.BARS);
+        bp.set(4, 2, 3, Mat.DOOR);
+        bp.set(2, 2, 5, Mat.BED);
+        bp.set(6, 2, 5, Mat.BED);
+        bp.set(2, 3, 6, Mat.TORCH);
+        bp.set(6, 3, 6, Mat.TORCH);
+        bp.set(4, 3, 1, Mat.LANTERN);
+        return bp;
+    }
+
+    private static Blueprint militaryBase() {
+        Blueprint bp = house(StructureType.MILITARY_BASE, 15, 8, 5, true, true);
+        for (int x = 2; x <= 12; x += 2) {
+            bp.set(x, 2, 6, Mat.BED);
+        }
+        bp.set(2, 2, 2, Mat.ANVIL);
+        bp.set(3, 2, 2, Mat.SMITHING_TABLE);
+        bp.set(12, 2, 2, Mat.CHEST);
+        bp.set(11, 2, 2, Mat.CHEST);
+        bp.set(4, 2, 4, Mat.BANNER);
+        bp.set(10, 2, 4, Mat.BANNER);
+        bp.set(7, 4, 4, Mat.LANTERN);
         return bp;
     }
 }
