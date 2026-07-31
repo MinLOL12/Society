@@ -42,7 +42,6 @@ import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.IronGolemEntity;
 import net.minecraft.entity.passive.VillagerEntity;
-import net.minecraft.entity.projectile.ArrowEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import net.minecraft.sound.SoundCategory;
@@ -70,6 +69,10 @@ public final class SocietyManager {
 
     /** Players further than this from a spawn point won't witness manifestations. */
     private static final double MANIFEST_WITNESS_RADIUS = 96.0;
+    /** Villagers may only land an unarmed hit from roughly one block away. */
+    private static final double VILLAGER_MELEE_RANGE_SQUARED = 2.25D;
+    /** Food is handed out by a Chef/Cook at most once per villager per 10 seconds. */
+    private static final int CHEF_FEED_INTERVAL_TICKS = 200;
 
     private static SocietyManager instance;
 
@@ -86,6 +89,7 @@ public final class SocietyManager {
     private int lastProcessedDay = -1;
 
     private final Map<UUID, Integer> lastVillagerAttackTick = new HashMap<UUID, Integer>();
+    private final Map<UUID, Integer> lastChefMealTick = new HashMap<UUID, Integer>();
     private final Set<UUID> aggressiveVillagers = new HashSet<UUID>();
     private final List<ArrestEscort> activeArrests = new ArrayList<ArrestEscort>();
     private final Map<String, Integer> lastArmyDeployDay = new HashMap<String, Integer>();
@@ -223,6 +227,38 @@ public final class SocietyManager {
         engine.clearDirty();
     }
 
+    private void feedVillagersFromChefs(int currentTick) {
+        List<VillagerEntity> chefs = new ArrayList<VillagerEntity>();
+        for (UUID id : loadedVillagers) {
+            Entity entity = overworld.getEntity(id);
+            if (entity instanceof VillagerEntity && entity.isAlive() && isCookingVillager((VillagerEntity) entity)) {
+                chefs.add((VillagerEntity) entity);
+            }
+        }
+        for (VillagerEntity chef : chefs) {
+            List<VillagerEntity> diners = overworld.getEntitiesByClass(VillagerEntity.class,
+                    chef.getBoundingBox().expand(3.0D),
+                    villager -> villager.isAlive() && villager != chef && villager.getHealth() < villager.getMaxHealth());
+            for (VillagerEntity diner : diners) {
+                UUID dinerId = diner.getUuid();
+                if (currentTick - lastChefMealTick.getOrDefault(dinerId, Integer.valueOf(-CHEF_FEED_INTERVAL_TICKS)).intValue()
+                        < CHEF_FEED_INTERVAL_TICKS) continue;
+                lastChefMealTick.put(dinerId, Integer.valueOf(currentTick));
+                chef.getLookControl().lookAt(diner, 30.0F, 30.0F);
+                chef.swingHand(Hand.MAIN_HAND, true);
+                diner.heal(2.0F);
+                overworld.playSound(null, diner.getX(), diner.getY(), diner.getZ(),
+                        SoundEvents.ENTITY_GENERIC_EAT, SoundCategory.NEUTRAL, 0.7F, 1.0F);
+                break; // one serving per chef per interaction pass
+            }
+        }
+    }
+
+    private static boolean isCookingVillager(VillagerEntity villager) {
+        String profession = villager.getVillagerData().getProfession().toString().toLowerCase(java.util.Locale.ROOT);
+        return profession.contains("chef") || profession.contains("cook");
+    }
+
     private void processLiveWorldInteractions() {
         int currentTick = server.getTicks();
 
@@ -237,6 +273,14 @@ public final class SocietyManager {
                     e -> e.isAlive() && (e instanceof HostileEntity || e.getTarget() == villager));
             if (!hostiles.isEmpty()) {
                 MobEntity target = hostiles.get(0);
+                // Do not apply damage at detection range.  Walk to the hostile first;
+                // this deliberately remains an unarmed, one-block melee attack.
+                double distanceSquared = villager.squaredDistanceTo(target);
+                if (distanceSquared > VILLAGER_MELEE_RANGE_SQUARED) {
+                    villager.getNavigation().startMovingTo(target, 1.15D);
+                    villager.getLookControl().lookAt(target, 30.0F, 30.0F);
+                    continue;
+                }
                 if (currentTick - lastVillagerAttackTick.getOrDefault(uuid, Integer.valueOf(-100)).intValue() >= 20) {
                     int aggression = 50;
                     Citizen c = engine.citizenForEntity(uuid.toString());
@@ -245,33 +289,20 @@ public final class SocietyManager {
                     }
                     if (overworld.getRandom().nextInt(100) < aggression) {
                         lastVillagerAttackTick.put(uuid, Integer.valueOf(currentTick));
-                        // Give the villager a bow so arrows visibly come from a bow
-                        villager.setStackInHand(Hand.MAIN_HAND, new ItemStack(Items.BOW));
-                        if (overworld.getRandom().nextDouble() < 0.10) {
-                            ArrowEntity arrow = new ArrowEntity(overworld, villager);
-                            double dx = target.getX() - villager.getX();
-                            double dy = target.getBodyY(0.33) - arrow.getY();
-                            double dz = target.getZ() - villager.getZ();
-                            double dist = Math.sqrt(dx * dx + dz * dz);
-                            arrow.setVelocity(dx, dy + dist * 0.2, dz, 1.6F, 2.0F);
-                            overworld.spawnEntity(arrow);
-                            overworld.playSound(null, villager.getX(), villager.getY(), villager.getZ(),
-                                    SoundEvents.ENTITY_SKELETON_SHOOT, SoundCategory.NEUTRAL, 1.0F, 1.0F);
-                            villager.swingHand(Hand.MAIN_HAND, true);
-                        } else {
-                            target.damage(overworld.getDamageSources().mobAttack(villager), (float) (2.0 + aggression * 0.05));
-                            villager.swingHand(Hand.MAIN_HAND, true);
-                            overworld.playSound(null, villager.getX(), villager.getY(), villager.getZ(),
-                                    SoundEvents.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.NEUTRAL, 1.0F, 1.0F);
-                        }
-                        // Clear the bow after the attack animation so it doesn't stay equipped forever
-                        if (overworld.getRandom().nextDouble() < 0.6) {
-                            villager.setStackInHand(Hand.MAIN_HAND, ItemStack.EMPTY);
-                        }
+                        target.damage(overworld.getDamageSources().mobAttack(villager),
+                                (float) (2.0 + aggression * 0.05));
+                        villager.swingHand(Hand.MAIN_HAND, true);
+                        overworld.playSound(null, villager.getX(), villager.getY(), villager.getZ(),
+                                SoundEvents.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.NEUTRAL, 1.0F, 1.0F);
                     }
                 }
             }
         }
+
+        // Chef's Delight's Chef/Cook professions keep nearby villagers fed.
+        // This stays registry-id based, so Society never needs to compile against
+        // the optional mod and works with either of its cooking professions.
+        feedVillagersFromChefs(currentTick);
 
         // 2. Military Base Army Deployment when >= 3 hostile mobs attacking villagers
         if (currentTick % 20 == 0) {

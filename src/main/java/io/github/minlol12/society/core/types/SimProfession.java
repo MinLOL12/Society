@@ -67,7 +67,7 @@ public enum SimProfession {
         if (id.endsWith(":farmer") || id.endsWith(":fisherman") || id.endsWith(":shepherd")
                 || id.endsWith(":fletcher")) return FARMER;
         if (id.endsWith(":armorer") || id.endsWith(":toolsmith") || id.endsWith(":weaponsmith")) return CRAFTER;
-        if (id.endsWith(":butcher")) return FARMER;
+        if (id.endsWith(":butcher") || id.endsWith(":chef") || id.endsWith(":cook")) return FARMER;
         if (id.endsWith(":cartographer")) return TRADER;
         if (id.endsWith(":cleric")) return HEALER;
         if (id.endsWith(":leatherworker") || id.endsWith(":mason")) return CRAFTER;

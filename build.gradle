@@ -36,6 +36,15 @@ dependencies {
 
 	// Lithostitched (file 6742616) - runtime library dependency required by CTOV on Fabric 1.20.1.
 	modRuntimeOnly "curse.maven:lithostitched-936015:6742616"
+
+	// AdoraBuild: Structures (file 5714699).  Its authored NBT templates are
+	// used directly by Society when this optional world-generation mod is present.
+	modRuntimeOnly "curse.maven:adorabuild-structures-883352:5714699"
+
+	// Chef's Delight [Fabric] (file 7335194) provides Cook and Chef villager
+	// professions. File 8547913 is its required food-library dependency.
+	modRuntimeOnly "curse.maven:chefs-delight-fabric-736986:7335194"
+	modRuntimeOnly "curse.maven:farmers-delight-fabric-398521:8547913"
 }
 
 processResources {
