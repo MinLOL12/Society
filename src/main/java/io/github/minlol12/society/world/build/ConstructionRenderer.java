@@ -176,10 +176,9 @@ public final class ConstructionRenderer {
                                             pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1),
                                     e -> true).isEmpty()) continue;
 
-                            PaintingEntity painting = new PaintingEntity(world, wallPos, dir.getOpposite());
                             RegistryEntry<PaintingVariant> variant = randomPaintingVariant(world);
                             if (variant != null) {
-                                painting.setVariant(variant);
+                                PaintingEntity painting = new PaintingEntity(world, wallPos, dir.getOpposite(), variant);
                                 if (painting.canStayAttached()) {
                                     world.spawnEntity(painting);
                                     placed++;
