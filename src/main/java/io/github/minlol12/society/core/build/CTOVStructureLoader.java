@@ -24,18 +24,26 @@ public final class CTOVStructureLoader {
     public static StructureTemplate load(ServerWorld world, String structurePath) {
         Identifier id = new Identifier(CTOV_NAMESPACE, structurePath);
         StructureTemplateManager manager = world.getStructureTemplateManager();
-        return manager.getTemplateOrThrow(id);
+        return manager.getTemplate(id).orElse(null);
     }
 
     /**
      * Places a CTOV structure at the given position.
      */
-    public static void place(ServerWorld world, String structurePath, BlockPos pos) {
+    public static void place(ServerWorld world, String structurePath, BlockPos pos, int rotation) {
         StructureTemplate template = load(world, structurePath);
         if (template != null) {
-            template.place(world, pos, pos, 
-                new net.minecraft.structure.StructurePlacementData(), 
-                world.random, 2);
+            net.minecraft.structure.StructurePlacementData data = new net.minecraft.structure.StructurePlacementData();
+            net.minecraft.util.BlockRotation rot = net.minecraft.util.BlockRotation.NONE;
+            switch (rotation % 4) {
+                case 1: rot = net.minecraft.util.BlockRotation.CLOCKWISE_90; break;
+                case 2: rot = net.minecraft.util.BlockRotation.CLOCKWISE_180; break;
+                case 3: rot = net.minecraft.util.BlockRotation.COUNTERCLOCKWISE_90; break;
+            }
+            if (rot != net.minecraft.util.BlockRotation.NONE) {
+                data.setRotation(rot);
+            }
+            template.place(world, pos, pos, data, world.random, 2);
         }
     }
 }

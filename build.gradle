@@ -27,8 +27,8 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-	// ChoiceTheorem's Overhauled Village (file 6459787) - NBT village structures
-	modImplementation "curse.maven:choicetheorems-overhauled-village-623908:7718417"
+	// ChoiceTheorem's Overhauled Village (file 6459787) - NBT village structures for 1.20.1
+	modImplementation "curse.maven:choicetheorems-overhauled-village-623908:6459787"
 }
 
 processResources {

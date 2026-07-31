@@ -53,6 +53,19 @@ public final class StructureBuilder {
                                          CultureOrigin origin, boolean finishAll,
                                          VillagerEntity builder) {
         Blueprint blueprint = Blueprints.of(building.type());
+        // CTOV NBT structures: no programmed cells, load from mod when finishing.
+        if (blueprint.solidCells() == 0) {
+            String ctovPath = Blueprints.getCTOVPath(building.type());
+            if (ctovPath != null) {
+                if (finishAll) {
+                    BlockPos anchor = groundAnchor(world, building, blueprint);
+                    io.github.minlol12.society.core.build.CTOVStructureLoader.place(world, ctovPath, anchor, building.rotation());
+                    building.setPlacedCells(1);
+                    return true;
+                }
+                return false;
+            }
+        }
         List<Blueprint.Cell> cells = blueprint.orderedCells();
         if (cells.isEmpty()) return true;
 
@@ -94,6 +107,26 @@ public final class StructureBuilder {
     /** Removes a building's blocks - used when a site is abandoned. */
     public static void clear(ServerWorld world, Building building) {
         Blueprint blueprint = Blueprints.of(building.type());
+        // CTOV structures: approximate removal by clearing footprint box.
+        if (blueprint.solidCells() == 0) {
+            String ctovPath = Blueprints.getCTOVPath(building.type());
+            if (ctovPath != null) {
+                BlockPos anchor = groundAnchor(world, building, blueprint);
+                int half = Math.max(blueprint.width(), blueprint.depth()) / 2 + 1;
+                int h = Math.max(blueprint.height(), 4);
+                for (int dx = -half; dx <= half; dx++) {
+                    for (int dz = -half; dz <= half; dz++) {
+                        for (int dy = 0; dy < h; dy++) {
+                            BlockPos pos = anchor.add(dx, dy, dz);
+                            if (!world.getBlockState(pos).isAir()) {
+                                world.setBlockState(pos, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS);
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+        }
         BlockPos anchor = groundAnchor(world, building, blueprint);
         for (Blueprint.Cell cell : blueprint.orderedCells()) {
             BlockPos pos = anchor.add(rotateX(cell, blueprint, building.rotation()),

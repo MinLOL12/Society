@@ -27,8 +27,11 @@ public final class Blueprints {
     private Blueprints() {}
 
     public static synchronized Blueprint of(StructureType type) {
-        // Return a minimal placeholder - real NBT loading happens in CTOVStructureLoader
-        return new Blueprint(type, 1, 1, 1);
+        // CTOV structures are loaded via NBT; return a dimensional placeholder
+        // so chunk checks and anchoring work without defining every cell.
+        int footprint = Math.max(1, type.footprint());
+        int height = Math.max(1, type.height());
+        return new Blueprint(type, footprint, height, footprint);
     }
 
     /**
