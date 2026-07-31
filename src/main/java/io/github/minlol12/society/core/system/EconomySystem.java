@@ -31,6 +31,14 @@ public final class EconomySystem {
     /** Hard cap on real villager entities standing around one settlement. */
     public static final int ENTITY_CAP = 40;
 
+    /** A settlement never keeps more than this many guards on the payroll. */
+    private static final int GUARD_HARD_CAP = 60;
+    /** Guards a town starts with before population is counted toward the watch. */
+    private static final int GUARD_BASE = 12;
+    /** One extra guard is warranted per this many citizens, landing the
+     *  typical watch around twenty-five and never above the hard cap. */
+    private static final int GUARD_PER_HEAD = 7;
+
     public static void tick(SocietyEngine engine, Settlement s, Season season) {
         Random random = engine.random();
         int day = engine.day();
@@ -526,14 +534,20 @@ public final class EconomySystem {
         return Math.max(lo, Math.min(hi, v));
     }
 
-    /** Caps per profession, so a village doesn't become all guards. */
+    /**
+     * Caps per profession, so a village doesn't become all guards. Guards are
+     * deliberately scarce: a town keeps a small standing watch (about twenty
+     * to twenty-five for an ordinary village) and never raises more than a
+     * hard sixty, no matter how large it grows - the rest farm, build and
+     * trade.
+     */
     private static int professionCap(SimProfession p, int population) {
         switch (p) {
             case FARMER: return Math.max(2, (int) Math.ceil(population * 0.5));
             case TRADER: return Math.max(1, population / 5);
             case SCHOLAR: return Math.max(1, 1 + population / 6);
             case HEALER: return Math.max(1, population / 7);
-            case GUARD: return Math.max(1, population / 4);
+            case GUARD: return Math.max(1, Math.min(GUARD_HARD_CAP, GUARD_BASE + population / GUARD_PER_HEAD));
             case STEWARD: return 1;
             default: return Math.max(1, population / 2);
         }

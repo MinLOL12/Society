@@ -43,16 +43,21 @@ public final class EventSystem {
     // =====================================================================
 
     private static void tickFestival(SocietyEngine engine, Settlement s, boolean raining, int seasonIndex) {
+        // A settlement's first duty is to grow, not to feast. Festivals are
+        // rare occasions now - only a thriving, sizable town in high spirits
+        // throws one, and even then most seasons pass quietly as the people
+        // put up another roof instead.
         if (seasonIndex == s.lastFestivalSeasonIndex()) return;
         s.setLastFestivalSeasonIndex(seasonIndex);
-        if (raining || s.morale() < 38.0) {
-            return; // nobody dances in the rain after a hungry year
+        if (raining || s.morale() < 65.0) {
+            return; // nobody dances in the rain, nor when the work is hard
         }
         int population = s.cachedPopulation();
-        if (population < 2) return;
+        if (population < 8) return;
+        if (engine.random().nextDouble() >= 0.25) return; // most seasons: back to the building site
 
-        s.addStock(Good.FOOD, -Math.min(s.stock(Good.FOOD), population * 0.4));
-        s.addMorale(4.0);
+        s.addStock(Good.FOOD, -Math.min(s.stock(Good.FOOD), population * 0.3));
+        s.addMorale(3.0);
         for (Citizen c : engine.liveCitizensOf(s)) {
             c.addReputation(1);
         }

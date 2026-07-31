@@ -63,6 +63,15 @@ builders and lumberjacks, research for scholars, threats for guards. Each
 day a few citizens are matched to the most-needed work they have an
 aptitude for. Elders retire; crises retrain people into food work.
 
+Guards are deliberately scarce: a town keeps a small standing watch
+(around twenty-five for an ordinary village) and is hard-capped at sixty,
+so the rest of its people farm, build and trade instead of all taking up
+swords.
+
+When monsters threaten, a village reacts like people, not a swarm. Only
+the brave and the aggressive charge; the cautious turn and run. Children
+never engage - they flee to safety.
+
 ### 5. Settlements really build
 
 This is not a counter going up. Each day a settlement works out what it most
@@ -109,6 +118,12 @@ Sandfolk.
 Fire and war leave real ruins, and the builders have to come back and raise
 them again.
 
+Towns put expansion first. They keep several sites rising at once, builders
+make faster progress the more hands are on a plot, and blocks go up briskly
+- so a village visibly grows rather than while away its days on festivals.
+Festivals are now occasional affairs, thrown only by thriving towns in high
+spirits.
+
 ### 6. A living economy
 
 Every day citizens produce goods (food, wood, stone, tools, ...) according
@@ -143,6 +158,11 @@ competing neighbours can slide into war. Wars have battles, plunder,
 scores, truces and tribute, and they are written into both towns'
 chronicles and the world's.
 
+Trade also reaches **across the map**. Established merchant towns with a
+marketplace, trading post or dock send caravans down long roads and, over
+time, hear of distant towns far beyond a scout's range - so complementary
+civilizations find each other and trade even across thousands of blocks.
+
 ### 10. Politics
 
 Each town is ruled according to its size and spirit: an Elder Council, a
@@ -173,6 +193,25 @@ Craft: **book + emerald** (shapeless).
 You do not need the Chronicle to read people: **sneak-click any villager
 with an empty hand** and their page opens.
 
+Any `[Society]` chat message about a settlement ends in a clickable
+**[Teleport]** that drops you at that settlement's most recently finished
+building - so the moment a town raises something, you can go and stand in
+it. The same trip is available on demand with `/society visit <name>`.
+
+## The War Baton
+
+Craft: **stick + iron ingot + redstone** (shapeless). It looks like a
+plain stick, but it carries a herald's authority.
+
+* Right-click the ground near one village to **mark** it.
+* Right-click near a second, different village to **declare war** between
+  the two - instantly, no matter how far apart they are or how friendly
+  they were. The decree is written into both chronicles and the world's.
+* Right-click in the air to **clear** the current mark.
+
+Wars started this way play out like any other: battles, plunder, war
+scores, and a truce or tribute at the end.
+
 ## Commands
 
 ```
@@ -187,6 +226,7 @@ with an empty hand** and their page opens.
 /society settlement <name> government   ruler, laws, council
 /society settlement <name> buildings    what stands, what is rising, what is blocked
 /society villager <entity>              a person's own page (entity selector)
+/society visit <name>                   teleport to a settlement's newest building
 /society history [count]                last entries of the world chronicle
 ```
 

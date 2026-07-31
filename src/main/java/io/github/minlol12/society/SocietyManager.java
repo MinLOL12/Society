@@ -49,6 +49,7 @@ import net.minecraft.sound.SoundEvents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
@@ -259,10 +260,62 @@ public final class SocietyManager {
         return profession.contains("chef") || profession.contains("cook");
     }
 
+    /**
+     * Steers a villager directly away from a threat, so the timid and the
+     * young survive an encounter instead of every last one charging in.
+     */
+    private static void fleeFrom(VillagerEntity villager, MobEntity threat) {
+        double dx = villager.getX() - threat.getX();
+        double dz = villager.getZ() - threat.getZ();
+        double len = Math.sqrt(dx * dx + dz * dz);
+        if (len < 1.0E-4D) {
+            // Standing on top of one another: bolt in a random direction.
+            dx = villager.getRandom().nextDouble() - 0.5D;
+            dz = villager.getRandom().nextDouble() - 0.5D;
+            len = Math.sqrt(dx * dx + dz * dz);
+            if (len < 1.0E-4D) {
+                dx = 1.0D;
+                dz = 0.0D;
+                len = 1.0D;
+            }
+        }
+        double fleeDistance = 14.0D;
+        double destX = villager.getX() + (dx / len) * fleeDistance;
+        double destZ = villager.getZ() + (dz / len) * fleeDistance;
+        villager.getNavigation().startMovingTo(destX, villager.getY(), destZ, 1.2D);
+    }
+
+    /**
+     * Teleports a player to a settlement's most recently finished building -
+     * or to its heart when nothing has been completed yet - so a builder's
+     * work can be admired the moment it is done.
+     */
+    public void teleportToConstruction(ServerPlayerEntity player, Settlement settlement) {
+        Building latest = null;
+        for (Building b : settlement.buildings()) {
+            if (b.isRuined() || !b.isComplete()) continue;
+            if (latest == null || b.completedDay() > latest.completedDay()) {
+                latest = b;
+            }
+        }
+        double destX = (latest != null ? latest.x() : settlement.centerX()) + 0.5D;
+        double destY = (latest != null ? latest.y() : settlement.centerY()) + 1.0D;
+        double destZ = (latest != null ? latest.z() : settlement.centerZ()) + 0.5D;
+        player.teleport(overworld, destX, destY, destZ,
+                java.util.EnumSet.noneOf(net.minecraft.network.packet.s2c.play.PositionFlag.class),
+                player.getYaw(), player.getPitch());
+        String where = latest != null
+                ? "the newly finished " + latest.type().display().toLowerCase()
+                : settlement.name();
+        player.sendMessage(Text.literal("[Society] Teleported to " + where + ".")
+                .formatted(Formatting.GOLD), false);
+    }
+
     private void processLiveWorldInteractions() {
         int currentTick = server.getTicks();
 
-        // 1. Villagers defend themselves against threats
+        // 1. Villagers react to threats: the brave stand and fight, the timid
+        //    and the young turn and run. Not everyone charges a monster.
         for (UUID uuid : new ArrayList<UUID>(loadedVillagers)) {
             Entity entity = overworld.getEntity(uuid);
             if (!(entity instanceof VillagerEntity) || !entity.isAlive()) continue;
@@ -271,31 +324,46 @@ public final class SocietyManager {
             List<MobEntity> hostiles = overworld.getEntitiesByClass(MobEntity.class,
                     villager.getBoundingBox().expand(16.0),
                     e -> e.isAlive() && (e instanceof HostileEntity || e.getTarget() == villager));
-            if (!hostiles.isEmpty()) {
-                MobEntity target = hostiles.get(0);
-                // Do not apply damage at detection range.  Walk to the hostile first;
-                // this deliberately remains an unarmed, one-block melee attack.
-                double distanceSquared = villager.squaredDistanceTo(target);
-                if (distanceSquared > VILLAGER_MELEE_RANGE_SQUARED) {
-                    villager.getNavigation().startMovingTo(target, 1.15D);
-                    villager.getLookControl().lookAt(target, 30.0F, 30.0F);
-                    continue;
-                }
-                if (currentTick - lastVillagerAttackTick.getOrDefault(uuid, Integer.valueOf(-100)).intValue() >= 20) {
-                    int aggression = 50;
-                    Citizen c = engine.citizenForEntity(uuid.toString());
-                    if (c != null) {
-                        aggression = c.personality().get(Trait.AGGRESSION);
-                    }
-                    if (overworld.getRandom().nextInt(100) < aggression) {
-                        lastVillagerAttackTick.put(uuid, Integer.valueOf(currentTick));
-                        target.damage(overworld.getDamageSources().mobAttack(villager),
-                                (float) (2.0 + aggression * 0.05));
-                        villager.swingHand(Hand.MAIN_HAND, true);
-                        overworld.playSound(null, villager.getX(), villager.getY(), villager.getZ(),
-                                SoundEvents.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.NEUTRAL, 1.0F, 1.0F);
-                    }
-                }
+            if (hostiles.isEmpty()) continue;
+            MobEntity target = hostiles.get(0);
+
+            int aggression = 50;
+            int caution = 50;
+            Citizen c = engine.citizenForEntity(uuid.toString());
+            if (c != null) {
+                aggression = c.personality().get(Trait.AGGRESSION);
+                caution = c.personality().get(Trait.CAUTION);
+            }
+
+            // Children never engage a monster - they run for safety.
+            if (villager.isBaby()) {
+                fleeFrom(villager, target);
+                continue;
+            }
+            // The cautious and the unaggressive flee instead of fighting; the
+            // fraction that stands its ground is decided by temperament, so a
+            // town does not throw every soul at a single zombie.
+            int fleeChance = Math.max(5, Math.min(95, 35 + caution - aggression));
+            if (overworld.getRandom().nextInt(100) < fleeChance) {
+                fleeFrom(villager, target);
+                continue;
+            }
+
+            // The brave close to melee range first; this deliberately remains
+            // an unarmed, one-block strike.
+            double distanceSquared = villager.squaredDistanceTo(target);
+            if (distanceSquared > VILLAGER_MELEE_RANGE_SQUARED) {
+                villager.getNavigation().startMovingTo(target, 1.15D);
+                villager.getLookControl().lookAt(target, 30.0F, 30.0F);
+                continue;
+            }
+            if (currentTick - lastVillagerAttackTick.getOrDefault(uuid, Integer.valueOf(-100)).intValue() >= 20) {
+                lastVillagerAttackTick.put(uuid, Integer.valueOf(currentTick));
+                target.damage(overworld.getDamageSources().mobAttack(villager),
+                        (float) (2.0 + aggression * 0.05));
+                villager.swingHand(Hand.MAIN_HAND, true);
+                overworld.playSound(null, villager.getX(), villager.getY(), villager.getZ(),
+                        SoundEvents.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.NEUTRAL, 1.0F, 1.0F);
             }
         }
 
@@ -483,8 +551,13 @@ public final class SocietyManager {
             if (announcement.severity == Announcement.Severity.NONE) {
                 continue;
             }
-            Text text = Text.literal("[Society] ").formatted(Formatting.GOLD)
+            MutableText text = Text.literal("[Society] ").formatted(Formatting.GOLD)
                     .append(Text.literal(announcement.text).formatted(Formatting.GRAY));
+            // A settlement the player can walk to in person can also be reached
+            // in a click - most usefully to admire a freshly finished building.
+            if (!announcement.settlementName.isEmpty()) {
+                text.append(buildTeleportLink(announcement.settlementName));
+            }
             if (announcement.severity == Announcement.Severity.GLOBAL) {
                 server.getPlayerManager().broadcast(text, false);
             } else {
@@ -495,6 +568,20 @@ public final class SocietyManager {
                 }
             }
         }
+    }
+
+    /** A clickable "[Teleport]" that runs the visit command for a settlement. */
+    private static MutableText buildTeleportLink(String settlementName) {
+        net.minecraft.text.Style style = net.minecraft.text.Style.EMPTY
+                .withColor(Formatting.AQUA)
+                .withUnderline(true)
+                .withClickEvent(new net.minecraft.text.ClickEvent(
+                        net.minecraft.text.ClickEvent.Action.RUN_COMMAND,
+                        "/society visit " + settlementName))
+                .withHoverEvent(new net.minecraft.text.HoverEvent(
+                        net.minecraft.text.HoverEvent.Action.SHOW_TEXT,
+                        Text.literal("Teleport to " + settlementName)));
+        return Text.literal(" [Teleport]").setStyle(style);
     }
 
     private void handleSpawnRequests() {

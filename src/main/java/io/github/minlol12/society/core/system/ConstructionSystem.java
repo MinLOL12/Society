@@ -32,8 +32,9 @@ import io.github.minlol12.society.core.types.Skill;
  */
 public final class ConstructionSystem {
 
-    /** Sites a settlement will work on at once. */
-    private static final int MAX_ACTIVE_SITES = 3;
+    /** Sites a settlement will work on at once. Towns favour expansion, so
+     *  they keep several plots going at the same time rather than one. */
+    private static final int MAX_ACTIVE_SITES = 6;
     /** How far out from the centre plots may be staked. */
     private static final int MAX_PLOT_RADIUS = 72;
 
@@ -84,7 +85,11 @@ public final class ConstructionSystem {
             if (worker != null) {
                 site.setWorkerId(worker.id());
             }
-            boolean finished = site.addWork(site.totalWork() / 10.0, engine.day());
+            // The more hands a settlement puts on a site, the faster it
+            // rises; even a site nobody is detailed to still creeps upward
+            // as neighbours lend a hand. Towns build far more than they feast.
+            double workToday = Math.max(site.totalWork() / 8.0, perSite);
+            boolean finished = site.addWork(workToday, engine.day());
             if (worker != null) {
                 worker.gainXp(Skill.BUILDING, 0.9
                         * worker.personality().archetype().aptitude(Skill.BUILDING));
