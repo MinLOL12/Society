@@ -475,8 +475,10 @@ public final class StructureBuilder {
                 continue;
             }
 
-            PaintingEntity painting = new PaintingEntity(world, wallPos, dir.getOpposite());
-            painting.setVariant(randomPaintingVariant(world));
+            RegistryEntry<PaintingVariant> variant = randomPaintingVariant(world);
+            if (variant == null) continue;
+
+            PaintingEntity painting = new PaintingEntity(world, wallPos, dir.getOpposite(), variant);
             if (painting.canStayAttached()) {
                 world.spawnEntity(painting);
                 return;
