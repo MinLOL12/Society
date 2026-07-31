@@ -216,6 +216,49 @@ public final class SocietyEngine {
         return false;
     }
 
+    /**
+     * Forces two settlements into open war, no matter the distance or their
+     * history. Used by a player wielding the War Baton: the first village
+     * marked is pitted against the second. Creates the diplomatic relation if
+     * the two have never met, then opens hostilities. Returns false when the
+     * pair is invalid or already at war.
+     */
+    public boolean declareWar(Settlement a, Settlement b) {
+        if (a == null || b == null || a.isDestroyed() || b.isDestroyed()
+                || a.id().equals(b.id())) {
+            return false;
+        }
+        DiplomaticRelation relation = findRelation(a.id(), b.id());
+        if (relation == null) {
+            relation = new DiplomaticRelation(a.id(), b.id(), currentDay);
+            seedContactScore(relation);
+            relations.add(relation);
+        }
+        if (relation.treaty().atWar()) {
+            return false;
+        }
+        relation.setScore(-60.0);
+        relation.beginWar(currentDay);
+        a.addThreat(4.0);
+        b.addThreat(4.0);
+        a.culture().noteWar();
+        b.culture().noteWar();
+        recordBilateral(EventType.WAR_START, a, b,
+                "War! At a player's decree, " + a.name() + " and " + b.name()
+                        + " have taken up arms against one another.");
+        markDirty();
+        return true;
+    }
+
+    /** Initial cautious score for a relation a player's decree conjured up. */
+    private void seedContactScore(DiplomaticRelation relation) {
+        Settlement a = settlements.get(relation.aId());
+        Settlement b = settlements.get(relation.bId());
+        double initial = (a != null && b != null
+                && a.culture().origin() == b.culture().origin()) ? 4.0 : 0.0;
+        relation.setScore(initial);
+    }
+
     // =====================================================================
     // World observation: villager snapshots
     // =====================================================================
@@ -770,7 +813,8 @@ public final class SocietyEngine {
         if (!config.announcements && severity != Announcement.Severity.NONE) return;
         double x = settlement == null ? 0 : settlement.centerX();
         double z = settlement == null ? 0 : settlement.centerZ();
-        pendingAnnouncements.add(new Announcement(severity, x, z, text));
+        pendingAnnouncements.add(new Announcement(severity, x, z, text,
+                settlement == null ? "" : settlement.name()));
     }
 
     public List<Announcement> drainAnnouncements() {

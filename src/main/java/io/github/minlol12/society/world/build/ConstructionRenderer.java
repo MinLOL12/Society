@@ -29,10 +29,12 @@ public final class ConstructionRenderer {
 
     /** Only render building work this close to a player. */
     private static final double RENDER_RADIUS = 160.0;
-    /** Buildings advanced per pass, across all settlements. */
-    private static final int BUILDINGS_PER_PASS = 4;
-    /** Ticks between passes; building is meant to be watchable, not instant. */
-    private static final int TICK_INTERVAL = 40;
+    /** Buildings advanced per pass, across all settlements. Settlements pour
+     *  their energy into expansion, so several rise at once. */
+    private static final int BUILDINGS_PER_PASS = 8;
+    /** Ticks between passes; building is meant to be watchable, not instant,
+     *  but towns are eager and the work moves along briskly. */
+    private static final int TICK_INTERVAL = 20;
 
     private final ServerWorld world;
     private final SocietyEngine engine;

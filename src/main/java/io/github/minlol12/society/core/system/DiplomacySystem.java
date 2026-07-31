@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Random;
 
 import io.github.minlol12.society.core.SocietyEngine;
+import io.github.minlol12.society.core.build.StructureType;
 import io.github.minlol12.society.core.data.Citizen;
 import io.github.minlol12.society.core.data.DiplomaticRelation;
 import io.github.minlol12.society.core.data.Settlement;
@@ -12,6 +13,7 @@ import io.github.minlol12.society.core.data.TradeRoute;
 import io.github.minlol12.society.core.types.EventType;
 import io.github.minlol12.society.core.types.Good;
 import io.github.minlol12.society.core.types.GovernmentType;
+import io.github.minlol12.society.core.types.SettlementTier;
 import io.github.minlol12.society.core.types.SimProfession;
 import io.github.minlol12.society.core.types.Treaty;
 
@@ -24,10 +26,12 @@ import io.github.minlol12.society.core.types.Treaty;
 public final class DiplomacySystem {
 
     /** Settlements notice each other within this range. */
-    private static final int CONTACT_RANGE = 700;
-    /** Caravan roads are worth maintaining within this range. */
-    private static final int ROUTE_RANGE = 600;
-    private static final int ROUTE_MAX_RANGE = 900;
+    private static final int CONTACT_RANGE = 1600;
+    /** Long-distance trade reaches this far; established merchant towns hear
+     *  of one another across the map through far-ranging caravans. */
+    private static final int ROUTE_MAX_RANGE = 4500;
+    /** Beyond ordinary contact, trading towns may still find each other. */
+    private static final int LONG_CONTACT_RANGE = 4500;
 
     private DiplomacySystem() { }
 
@@ -69,6 +73,43 @@ public final class DiplomacySystem {
                 }
             }
         }
+        discoverDistantTradingPartners(engine, alive, day);
+    }
+
+    /**
+     * Even far across the map, two established trading towns eventually hear
+     * of one another - a marketplace or dock sends caravans down long roads,
+     * and complementary economies find each other and start to trade at a
+     * distance no scout would ever have walked.
+     */
+    private static void discoverDistantTradingPartners(SocietyEngine engine,
+                                                       List<Settlement> alive, int day) {
+        for (int i = 0; i < alive.size(); i++) {
+            for (int j = i + 1; j < alive.size(); j++) {
+                Settlement a = alive.get(i);
+                Settlement b = alive.get(j);
+                double distance = a.distanceTo(b);
+                if (distance <= CONTACT_RANGE || distance > LONG_CONTACT_RANGE) continue;
+                if (!isTradingTown(a) || !isTradingTown(b)) continue;
+                if (engine.findRelation(a.id(), b.id()) != null) continue;
+                // Most days the caravans are still on the road.
+                if (engine.random().nextDouble() >= 0.25) continue;
+                DiplomaticRelation relation = new DiplomaticRelation(a.id(), b.id(), day);
+                relation.setScore(4.0);
+                engine.relations().add(relation);
+                engine.recordBilateral(EventType.FIRST_CONTACT, a, b,
+                        "Far-ranging traders of " + a.name() + " and " + b.name()
+                                + " have met across " + (int) distance
+                                + " blocks of road and river, and speak of trade.");
+            }
+        }
+    }
+
+    /** A settlement big enough and built up enough to reach across the map. */
+    private static boolean isTradingTown(Settlement s) {
+        if (s.tier().ordinal() < SettlementTier.VILLAGE.ordinal()) return false;
+        return s.has(StructureType.MARKETPLACE) || s.has(StructureType.TRADING_POST)
+                || s.has(StructureType.DOCK) || s.has(StructureType.MARKET_STALL);
     }
 
     // =====================================================================
@@ -129,7 +170,7 @@ public final class DiplomacySystem {
                     relation.setTreaty(Treaty.TRADE_PACT);
                     engine.recordBilateral(EventType.TRADE_PACT, a, b,
                             a.name() + " and " + b.name() + " have struck a trade pact.");
-                    if (distance <= ROUTE_RANGE && engine.findRoute(a.id(), b.id()) == null) {
+                    if (distance <= ROUTE_MAX_RANGE && engine.findRoute(a.id(), b.id()) == null) {
                         engine.routes().add(new TradeRoute(a.id(), b.id(), day));
                         engine.recordBilateral(EventType.TRADE_ROUTE, a, b,
                                 "A caravan road now runs between " + a.name() + " and " + b.name() + ".");

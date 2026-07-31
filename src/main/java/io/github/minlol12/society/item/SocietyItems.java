@@ -14,12 +14,20 @@ public final class SocietyItems {
 
     public static final Item SOCIETY_CHRONICLE = new ChronicleItem(new Item.Settings().maxCount(1));
 
+    /** A herald's stick for setting two civilizations at war. */
+    public static final Item WAR_BATON = new WarBatonItem(new Item.Settings().maxCount(1));
+
     private SocietyItems() { }
 
     public static void register() {
         Registry.register(Registries.ITEM,
                 new Identifier(SocietyMod.MOD_ID, "society_chronicle"), SOCIETY_CHRONICLE);
+        Registry.register(Registries.ITEM,
+                new Identifier(SocietyMod.MOD_ID, "war_baton"), WAR_BATON);
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS)
-                .register(entries -> entries.add(SOCIETY_CHRONICLE));
+                .register(entries -> {
+                    entries.add(SOCIETY_CHRONICLE);
+                    entries.add(WAR_BATON);
+                });
     }
 }

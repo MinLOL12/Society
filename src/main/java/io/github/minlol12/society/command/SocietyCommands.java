@@ -54,11 +54,15 @@ public final class SocietyCommands {
                 send(player, "/society settlement <name> [info|economy|tech|culture|"
                         + "diplomacy|government|buildings]", Formatting.GRAY);
                 send(player, "/society villager <entity> - a person's own page", Formatting.GRAY);
+                send(player, "/society visit <name> - teleport to a settlement's newest building",
+                        Formatting.GRAY);
                 send(player, "/society history [count] - the world chronicle", Formatting.GRAY);
                 send(player, "Click a villager (sneak, or hold the Chronicle) to open their page.",
                         Formatting.DARK_GRAY);
                 send(player, "Craft the Society Chronicle (book + emerald) to browse it in-world.",
                         Formatting.DARK_GRAY);
+                send(player, "Craft the War Baton (stick + iron + redstone) and click two villages"
+                        + " to set them at war.", Formatting.DARK_GRAY);
             }));
 
             root.then(CommandManager.literal("day").executes(context ->
@@ -68,6 +72,10 @@ public final class SocietyCommands {
                     withPlayer(context.getSource(), SocietyText::printSettlementList)));
 
             root.then(buildSettlementSubcommand());
+
+            root.then(CommandManager.literal("visit")
+                    .then(CommandManager.argument("name", StringArgumentType.word())
+                            .executes(context -> visitSettlement(context))));
 
             root.then(CommandManager.literal("villager")
                     .then(CommandManager.argument("entity", EntityArgumentType.entity())
@@ -122,6 +130,27 @@ public final class SocietyCommands {
                 return;
             }
             SocietyText.printSettlementSection(player, engine, settlement, section);
+        });
+    }
+
+    /** Teleports the caller to a settlement's most recently finished building. */
+    private static int visitSettlement(
+            com.mojang.brigadier.context.CommandContext<ServerCommandSource> context) {
+        String name = StringArgumentType.getString(context, "name");
+        return withPlayer(context.getSource(), (player, engine) -> {
+            Settlement settlement = engine.findSettlementByName(name);
+            if (settlement == null) {
+                context.getSource().sendError(Text.literal(
+                        "No settlement answers to '" + name + "'."));
+                return;
+            }
+            SocietyManager manager = SocietyManager.get();
+            if (manager == null) {
+                context.getSource().sendError(Text.literal(
+                        "The society ledger is still waking up."));
+                return;
+            }
+            manager.teleportToConstruction(player, settlement);
         });
     }
 
