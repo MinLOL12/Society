@@ -225,6 +225,14 @@ cooking content, also install the declared runtime mods: CTOV (6459787),
 AdoraBuild: Structures (5714699), Chef's Delight [Fabric] (7335194), and its
 required Farmer's Delight dependency (8547913).
 
+**Note on Chef's Delight:** Chef's Delight 1.0.4+ (Fabric) depends on
+Structurized Reborn (https://modrinth.com/mod/sructurized-reborn) to register
+its village structures, but does not list it in its own mod metadata.
+Society therefore pulls it automatically as a runtime dependency when Chef's
+Delight is present in the dev environment (and you should install it too
+if you are using Chef's Delight in a modpack or client). The Maven coordinate
+used is `maven.modrinth:Wd844r7Q:9bAkNJm5` (file/version ID for the 1.20.1 Fabric build).
+
 ## Headless simulation
 
 The whole engine can run without Minecraft:

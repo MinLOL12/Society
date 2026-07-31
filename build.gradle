@@ -18,6 +18,15 @@ repositories {
 			includeGroup "curse.maven"
 		}
 	}
+
+	// Modrinth Maven – for Structurized Reborn (required at runtime by Chef's Delight for village structure registration)
+	maven {
+		name = "Modrinth"
+		url = "https://api.modrinth.com/maven"
+		content {
+			includeGroup "maven.modrinth"
+		}
+	}
 }
 
 dependencies {
@@ -44,6 +53,17 @@ dependencies {
 	// Chef's Delight [Fabric] (file 7335194) provides Cook and Chef villager
 	// professions. It requires the Fabric port of Farmer's Delight at runtime.
 	modRuntimeOnly "curse.maven:chefs-delight-fabric-736986:7335194"
+
+	// Structurized Reborn (required runtime dependency of Chef's Delight 1.0.4+)
+	// Chef's Delight calls into fzzyhmstrs.structurized_reborn.impl.FabricStructurePoolRegistry
+	// to register its village structures, but does not declare it as a dependency.
+	// Without this, runClient (and players using recommended chefsdelight) will crash with
+	// NoClassDefFoundError / ClassNotFoundException on init.
+	//
+	// Uses Modrinth Maven. Project slug: sructurized-reborn (ID: Wd844r7Q).
+	// File ID (version ID) for the 1.20.1 Fabric build: 9bAkNJm5
+	// This is the exact file that provides fzzyhmstrs.structurized_reborn.impl.FabricStructurePoolRegistry.
+	modRuntimeOnly "maven.modrinth:Wd844r7Q:9bAkNJm5"
 
 	// 398521 is the Forge Farmer's Delight project, not its Fabric port.  Although
 	// 8547913 is a valid CurseForge file ID, it is not a downloadable artifact for
