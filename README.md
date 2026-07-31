@@ -88,6 +88,13 @@ means faster research; a granary widens the stores; a fountain lifts spirits;
 a watchtower adds to the town's defence; an infirmary means fewer deaths.
 Nothing in the catalogue is scenery.
 
+Society does not fabricate substitute houses from hard-coded blocks. Village
+buildings are stamped from the authored NBT templates supplied by CTOV, with
+AdoraBuild: Structures adding its own authored structures to world generation.
+A Society site is rejected unless its entire plot is dry, level, clear, and
+solid; it will not fill water, cut into a hill, or overlap an existing build.
+Homes also keep six clear blocks from other homes.
+
 Crucially, **housing is now the beds that actually exist**. A settlement can
 only grow as far as it has built houses to sleep in, so the tier ladder -
 
@@ -213,7 +220,10 @@ Requires JDK 17 and network access to the Fabric maven repositories:
 ```
 
 produces `build/libs/society-<version>.jar`. Drop it into a Fabric
-1.20.1 server's `mods/` together with Fabric API.
+1.20.1 server's `mods/` together with Fabric API. For authored village and
+cooking content, also install the declared runtime mods: CTOV (6459787),
+AdoraBuild: Structures (5714699), Chef's Delight [Fabric] (7335194), and its
+required Farmer's Delight dependency (8547913).
 
 ## Headless simulation
 

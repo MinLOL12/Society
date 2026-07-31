@@ -346,7 +346,8 @@ public final class ConstructionSystem {
 
     /**
      * Stakes out a plot: spirals out from the settlement centre looking for
-     * open ground that doesn't overlap an existing building. Returns
+     * open ground that doesn't overlap an existing building. House plots keep
+     * a six-block edge-to-edge buffer from every other house. Returns
      * {@code {x, y, z, rotation}} or null when the town is too crowded.
      *
      * <p>Only the ledger's own geometry is consulted here - the Minecraft
@@ -365,7 +366,7 @@ public final class ConstructionSystem {
             int x = s.centerX() + (int) Math.round(Math.cos(angle) * ring);
             int z = s.centerZ() + (int) Math.round(Math.sin(angle) * ring);
 
-            if (overlaps(engine, s, x, z, need)) continue;
+            if (overlaps(engine, s, x, z, need, type)) continue;
 
             // Face the building toward the settlement centre so doors open
             // onto the town rather than the wilderness.
@@ -375,11 +376,19 @@ public final class ConstructionSystem {
         return null;
     }
 
-    private static boolean overlaps(SocietyEngine engine, Settlement s, int x, int z, int need) {
+    private static boolean overlaps(SocietyEngine engine, Settlement s, int x, int z, int need,
+                                    StructureType proposed) {
         for (Settlement other : engine.settlements().values()) {
             for (Building b : other.buildings()) {
                 double gap = b.distanceTo(x, z);
-                if (gap < need + b.radius() + 4) return true;
+                int separation = 4;
+                if (proposed.category() == StructureType.Category.HOUSING
+                        && b.type().category() == StructureType.Category.HOUSING) {
+                    // radius() includes the plot edge; the remaining six are
+                    // empty ground, not a centre-to-centre approximation.
+                    separation = 6;
+                }
+                if (gap < need + b.radius() + separation) return true;
             }
         }
         return false;

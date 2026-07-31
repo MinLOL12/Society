@@ -25,7 +25,9 @@
     "fabric-api": "*"
   },
   "recommends": {
-    "ctov": "*"
+    "ctov": "*",
+    "adorabuild": "*",
+    "chefsdelight": "*"
   },
   "custom": {
     "society:note": "Simulation runs server-side; vanilla clients can join a Society server."
