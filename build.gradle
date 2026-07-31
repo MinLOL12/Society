@@ -11,11 +11,13 @@ base {
 }
 
 repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
+	// Cursemaven – resolves curse.maven: dependency coordinates for mods on CurseForge
+	maven {
+		url = "https://cursemaven.com"
+		content {
+			includeGroup "curse.maven"
+		}
+	}
 }
 
 dependencies {
@@ -28,7 +30,9 @@ dependencies {
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
 	// ChoiceTheorem's Overhauled Village (file 6459787) - NBT village structures for 1.20.1
-	modImplementation "curse.maven:choicetheorems-overhauled-village-623908:6459787"
+	// Only needed at runtime; no CTOV classes are compiled against – the loader
+	// discovers CTOV NBT structures via the "ctov" namespace if the mod is present.
+	modRuntimeOnly "curse.maven:choicetheorems-overhauled-village-623908:6459787"
 }
 
 processResources {
