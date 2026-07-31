@@ -99,6 +99,9 @@ public final class EconomySystem {
         computeNeeds(engine, s, population, security);
         runAssignment(engine, s, people, random);
 
+        // --- Players' roles: an online blacksmith sharpens the town ---------
+        PlayerRoleSystem.applySettlementBonuses(engine, s);
+
         // --- Manifest world presence ----------------------------------------
         engine.requestManifestations(s, people);
     }

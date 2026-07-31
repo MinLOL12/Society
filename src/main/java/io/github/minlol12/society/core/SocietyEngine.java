@@ -10,13 +10,18 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
+import io.github.minlol12.society.core.build.StructureType;
+import io.github.minlol12.society.core.data.Building;
 import io.github.minlol12.society.core.data.ChronicleEntry;
 import io.github.minlol12.society.core.data.Citizen;
 import io.github.minlol12.society.core.data.Culture;
+import io.github.minlol12.society.core.data.Currency;
 import io.github.minlol12.society.core.data.DiplomaticRelation;
 import io.github.minlol12.society.core.data.Government;
 import io.github.minlol12.society.core.data.Household;
 import io.github.minlol12.society.core.data.Personality;
+import io.github.minlol12.society.core.data.PlayerData;
+import io.github.minlol12.society.core.data.PlayerStructure;
 import io.github.minlol12.society.core.data.Settlement;
 import io.github.minlol12.society.core.data.TradeRoute;
 import io.github.minlol12.society.core.io.Compound;
@@ -32,6 +37,7 @@ import io.github.minlol12.society.core.types.CultureOrigin;
 import io.github.minlol12.society.core.types.EventType;
 import io.github.minlol12.society.core.types.Good;
 import io.github.minlol12.society.core.types.GovernmentType;
+import io.github.minlol12.society.core.types.PlayerRole;
 import io.github.minlol12.society.core.types.Season;
 import io.github.minlol12.society.core.types.SimProfession;
 import io.github.minlol12.society.core.types.Skill;
@@ -62,6 +68,16 @@ public final class SocietyEngine {
     private final List<ChronicleEntry> worldChronicle = new ArrayList<ChronicleEntry>();
     /** entity uuid string -> citizen id. */
     private final Map<String, String> entityToCitizen = new HashMap<String, String>();
+
+    // --- Player-sphere state (multiplayer layers on top of the sim) ---------
+    /** Structures claimed by players (premade NBT stamps or Setter Stick boxes). */
+    private final List<PlayerStructure> playerStructures = new ArrayList<PlayerStructure>();
+    /** player uuid string -> player data (role, home settlement, currency purse). */
+    private final Map<String, PlayerData> playerData = new LinkedHashMap<String, PlayerData>();
+    /** settlement id -> player uuid of the crowned sovereign (if any). */
+    private final Map<String, String> rulerPlayers = new LinkedHashMap<String, String>();
+    /** The world's player-managed currency. */
+    private final Currency currency = new Currency();
 
     // --- Transient daily bookkeeping (not persisted) ------------------------
     private final Set<String> touchedToday = new HashSet<String>();
@@ -171,6 +187,138 @@ public final class SocietyEngine {
             if (s.name().toLowerCase().startsWith(q.toLowerCase())) return s;
         }
         return null;
+    }
+
+    // =====================================================================
+    // Player sphere: roles, structures, currency
+    // =====================================================================
+
+    public Currency currency() { return currency; }
+
+    public List<PlayerStructure> playerStructures() { return playerStructures; }
+
+    public Map<String, PlayerData> playerData() { return playerData; }
+
+    public Map<String, String> rulerPlayers() { return rulerPlayers; }
+
+    /** The ledger entry for a player, or null when they have none yet. */
+    public PlayerData findPlayerData(String playerUuid) {
+        return playerUuid == null ? null : playerData.get(playerUuid);
+    }
+
+    /** Gets (creating on first sight) the ledger entry for a player. */
+    public PlayerData playerDataFor(String playerUuid, String playerName) {
+        PlayerData data = playerData.get(playerUuid);
+        if (data == null) {
+            data = new PlayerData(playerUuid);
+            data.setPlayerName(playerName);
+            data.noteSeen(currentDay);
+            playerData.put(playerUuid, data);
+            markDirty();
+        }
+        return data;
+    }
+
+    public PlayerRole playerRole(String playerUuid) {
+        PlayerData data = playerData.get(playerUuid);
+        return data == null ? PlayerRole.NONE : data.role();
+    }
+
+    public Settlement playerHomeSettlement(String playerUuid) {
+        PlayerData data = playerData.get(playerUuid);
+        if (data == null || data.homeSettlementId().isEmpty()) return null;
+        Settlement s = settlements.get(data.homeSettlementId());
+        return s == null || s.isDestroyed() ? null : s;
+    }
+
+    /** The settlement a player currently rules, if any. */
+    public Settlement settlementRuledBy(String playerUuid) {
+        for (Map.Entry<String, String> e : rulerPlayers.entrySet()) {
+            if (e.getValue().equals(playerUuid)) {
+                Settlement s = settlements.get(e.getKey());
+                if (s != null && !s.isDestroyed()) return s;
+            }
+        }
+        return null;
+    }
+
+    public void addPlayerStructure(PlayerStructure structure) {
+        if (structure == null) return;
+        playerStructures.add(structure);
+        markDirty();
+    }
+
+    public PlayerStructure findPlayerStructure(String id) {
+        if (id == null) return null;
+        for (PlayerStructure p : playerStructures) {
+            if (p.id().equals(id)) return p;
+        }
+        return null;
+    }
+
+    public boolean removePlayerStructure(String id) {
+        PlayerStructure p = findPlayerStructure(id);
+        if (p == null) return false;
+        playerStructures.remove(p);
+        markDirty();
+        return true;
+    }
+
+    public List<PlayerStructure> playerStructuresByOwner(String ownerName) {
+        List<PlayerStructure> out = new ArrayList<PlayerStructure>();
+        if (ownerName == null) return out;
+        for (PlayerStructure p : playerStructures) {
+            if (p.ownerName().equalsIgnoreCase(ownerName)) out.add(p);
+        }
+        return out;
+    }
+
+    public List<PlayerStructure> playerStructuresNear(int x, int z, double radius) {
+        List<PlayerStructure> out = new ArrayList<PlayerStructure>();
+        for (PlayerStructure p : playerStructures) {
+            double dx = p.centerX() - x;
+            double dz = p.centerZ() - z;
+            if (Math.sqrt(dx * dx + dz * dz) <= radius) out.add(p);
+        }
+        return out;
+    }
+
+    /** Nearest government building near a spot, or null. */
+    public PlayerStructure findGovernmentStructureNear(int x, int z, double radius) {
+        PlayerStructure best = null;
+        double bestDist = radius;
+        for (PlayerStructure p : playerStructures) {
+            if (!p.isGovernment()) continue;
+            double dx = p.centerX() - x;
+            double dz = p.centerZ() - z;
+            double d = Math.sqrt(dx * dx + dz * dz);
+            if (d < bestDist) {
+                bestDist = d;
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * A player-stamped premade building joins the nearest settlement's
+     * ledger (a real, finished plot) so it contributes beds, defence,
+     * research or trade like anything the villagers raised themselves.
+     */
+    public Building attachPlayerBuildingToSettlement(Settlement s, StructureType type,
+                                                     int x, int y, int z) {
+        if (s == null || s.isDestroyed() || type == null) return null;
+        double work = Math.max(2.0, type.footprint() * 0.5);
+        Building b = new Building(UUID.randomUUID().toString(), type,
+                x, y, z, 0, work, currentDay);
+        b.addWork(work, currentDay);
+        s.buildings().add(b);
+        s.addMorale(0.5);
+        record(EventType.CONSTRUCTION, s,
+                "A player raised a " + type.display().toLowerCase() + " here - "
+                        + "the settlement counts it among its buildings.");
+        markDirty();
+        return b;
     }
 
     public DiplomaticRelation findRelation(String aId, String bId) {
@@ -877,6 +1025,11 @@ public final class SocietyEngine {
         // 2. Diplomacy across the whole map.
         DiplomacySystem.tick(this);
 
+        // 2b. The players' currency breathes: its backing is re-measured
+        // against every settlement's real wealth, and the value of a note
+        // follows the supply the players have printed.
+        currency.dailyTick(this);
+
         // 3. Household and hearth systems per settlement.
         for (Settlement s : new ArrayList<Settlement>(settlements.values())) {
             if (s.isDestroyed()) continue;
@@ -965,6 +1118,18 @@ public final class SocietyEngine {
             entityMap.put(e.getKey(), e.getValue());
         }
         root.put("entityMap", entityMap);
+        List<Compound> structureList = new ArrayList<Compound>();
+        for (PlayerStructure p : playerStructures) structureList.add(p.save());
+        root.putCompoundList("playerStructures", structureList);
+        List<Compound> playerList = new ArrayList<Compound>();
+        for (PlayerData d : playerData.values()) playerList.add(d.save());
+        root.putCompoundList("playerData", playerList);
+        Compound rulerMap = new Compound();
+        for (Map.Entry<String, String> e : rulerPlayers.entrySet()) {
+            rulerMap.put(e.getKey(), e.getValue());
+        }
+        root.put("rulerPlayers", rulerMap);
+        root.put("currency", currency.save());
         return root;
     }
 
@@ -977,6 +1142,9 @@ public final class SocietyEngine {
         routes.clear();
         worldChronicle.clear();
         entityToCitizen.clear();
+        playerStructures.clear();
+        playerData.clear();
+        rulerPlayers.clear();
         for (Compound c : root.getCompoundList("settlements")) {
             Settlement s = Settlement.load(c);
             if (!s.id().isEmpty()) settlements.put(s.id(), s);
@@ -1005,6 +1173,21 @@ public final class SocietyEngine {
                 entityToCitizen.put(e.getKey(), (String) e.getValue());
             }
         }
+        for (Compound c : root.getCompoundList("playerStructures")) {
+            PlayerStructure p = PlayerStructure.load(c);
+            if (!p.id().isEmpty()) playerStructures.add(p);
+        }
+        for (Compound c : root.getCompoundList("playerData")) {
+            PlayerData d = PlayerData.load(c);
+            if (!d.uuid().isEmpty()) playerData.put(d.uuid(), d);
+        }
+        Compound rulerMap = root.getCompound("rulerPlayers");
+        for (Map.Entry<String, Object> e : rulerMap.raw().entrySet()) {
+            if (e.getValue() instanceof String) {
+                rulerPlayers.put(e.getKey(), (String) e.getValue());
+            }
+        }
+        currency.load(root.getCompound("currency"));
         // Referential integrity: prune dangling links one way or the other.
         for (Settlement s : settlements.values()) {
             List<String> keep = new ArrayList<String>();

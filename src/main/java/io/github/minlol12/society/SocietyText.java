@@ -273,6 +273,17 @@ public final class SocietyText {
             send(player, routes + (routes == 1 ? " trade route feeds" : " trade routes feed")
                     + " its markets.", Formatting.GREEN);
         }
+
+        // The world's player-managed currency, seen from this treasury.
+        io.github.minlol12.society.core.data.Currency currency = engine.currency();
+        double realWorth = settlement.treasury() * currency.value();
+        send(player, "The treasury holds " + Math.round(settlement.treasury()) + " "
+                + currency.name().toLowerCase() + " - worth about "
+                + fmt(realWorth) + " emeralds while the currency is "
+                + currency.trendWord() + ".", Formatting.AQUA);
+        send(player, "One " + currency.name().toLowerCase().replaceFirst("s$", "")
+                + " buys " + fmt(currency.value()) + " emeralds of goods ("
+                + fmt(currency.supply()) + " in circulation).", Formatting.DARK_AQUA);
     }
 
     private static void printTechSection(ServerPlayerEntity player, Settlement settlement) {
@@ -377,6 +388,33 @@ public final class SocietyText {
             if (shown > 0) {
                 send(player, council.toString(), Formatting.GRAY);
             }
+        }
+
+        // The player sphere: crowned sovereigns and player-claimed buildings.
+        String rulerUuid = engine.rulerPlayers().get(settlement.id());
+        if (rulerUuid != null) {
+            io.github.minlol12.society.core.data.PlayerData ruler =
+                    engine.playerData().get(rulerUuid);
+            if (ruler != null) {
+                send(player, ruler.role().display() + " " + ruler.playerName()
+                        + " sits on a player throne here, crowned by their fellow players.",
+                        Formatting.RED);
+            }
+        }
+        boolean anyPlayerBuildings = false;
+        StringBuilder gov = new StringBuilder("Player buildings:");
+        for (io.github.minlol12.society.core.data.PlayerStructure p
+                : engine.playerStructures()) {
+            if (!settlement.id().equals(p.settlementId())) {
+                continue;
+            }
+            anyPlayerBuildings = true;
+            gov.append(' ').append(p.label()).append(" (")
+                    .append(p.kind().display().toLowerCase()).append(" by ")
+                    .append(p.ownerName()).append("),");
+        }
+        if (anyPlayerBuildings) {
+            send(player, gov.substring(0, gov.length() - 1), Formatting.DARK_AQUA);
         }
     }
 
