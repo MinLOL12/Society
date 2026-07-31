@@ -67,6 +67,9 @@ public enum Mat {
     SCARECROW(Phase.FIXTURE),
     GRAVESTONE(Phase.FIXTURE),
 
+    /** Wall painting, adds culture and beauty to interiors. */
+    PAINTING(Phase.FIXTURE),
+
     // --- Workstations and furniture -------------------------------------
     BELL(Phase.FIXTURE),
     CHEST(Phase.FIXTURE),
@@ -130,6 +133,7 @@ public enum Mat {
             case BEEHIVE:
             case TORCH:
             case BEAM:
+            case PAINTING:
                 return true;
             default:
                 return false;
@@ -151,6 +155,7 @@ public enum Mat {
             case CROP:
             case SAPLING:
             case SIGN:
+            case PAINTING:
                 return 0.1;
             case FOUNDATION:
             case WALL:

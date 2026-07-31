@@ -16,7 +16,10 @@ import net.minecraft.block.DoorBlock;
 import net.minecraft.block.enums.BedPart;
 import net.minecraft.block.enums.DoubleBlockHalf;
 import net.minecraft.block.enums.SlabType;
+import net.minecraft.entity.decoration.painting.PaintingEntity;
+import net.minecraft.entity.decoration.painting.PaintingVariant;
 import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.state.property.Properties;
 import net.minecraft.server.world.ServerWorld;
@@ -369,6 +372,9 @@ public final class StructureBuilder {
                     state = state.with(Properties.HORIZONTAL_FACING, front.rotateYClockwise());
                 }
                 break;
+            case PAINTING:
+                placePainting(world, pos, front);
+                return;
             case WATER:
                 ensureSolidContainer(world, pos);
                 world.setBlockState(pos, Blocks.WATER.getDefaultState(), Block.NOTIFY_ALL);
@@ -441,5 +447,49 @@ public final class StructureBuilder {
                 .with(Properties.BED_PART, BedPart.HEAD);
         world.setBlockState(pos, foot, Block.NOTIFY_LISTENERS);
         world.setBlockState(head, headState, Block.NOTIFY_LISTENERS);
+    }
+
+    /**
+     * Spawns a painting entity on the wall at the given position. Paintings
+     * are placed on the wall face indicated by the building's front direction,
+     * adding culture and visual richness to interiors.
+     */
+    private static void placePainting(ServerWorld world, BlockPos pos, Direction front) {
+        // Find a solid wall adjacent to this position to attach a painting to.
+        // Try all horizontal directions to find a suitable wall face.
+        for (Direction dir : Direction.Type.HORIZONTAL) {
+            BlockPos wallPos = pos.offset(dir);
+            BlockState wallState = world.getBlockState(wallPos);
+            if (!wallState.isOpaqueFullCube(world, wallPos)) continue;
+
+            // Only place paintings sometimes (~40% chance) so interiors aren't
+            // plastered floor-to-ceiling.
+            if (world.random.nextInt(100) >= 40) continue;
+
+            // Avoid placing if there's already a painting nearby.
+            if (!world.getEntitiesByClass(PaintingEntity.class,
+                    new net.minecraft.util.math.Box(
+                            pos.getX() - 2, pos.getY() - 2, pos.getZ() - 2,
+                            pos.getX() + 2, pos.getY() + 2, pos.getZ() + 2),
+                    e -> true).isEmpty()) {
+                continue;
+            }
+
+            PaintingEntity painting = new PaintingEntity(world, wallPos, dir.getOpposite());
+            painting.setVariant(randomPaintingVariant(world));
+            if (painting.canStayAttached()) {
+                world.spawnEntity(painting);
+                return;
+            }
+        }
+    }
+
+    /** Picks a random painting variant from the registry. */
+    private static RegistryEntry<PaintingVariant> randomPaintingVariant(ServerWorld world) {
+        var registry = world.getRegistryManager()
+                .get(net.minecraft.registry.RegistryKeys.PAINTING_VARIANT);
+        var all = registry.streamEntries().toList();
+        if (all.isEmpty()) return null;
+        return all.get(world.random.nextInt(all.size()));
     }
 }

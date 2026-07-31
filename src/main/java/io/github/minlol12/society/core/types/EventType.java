@@ -46,7 +46,11 @@ public enum EventType {
     PLAGUE(Level.GLOBAL),
     RAID(Level.LOCAL),
     DEFENCE(Level.LOCAL),
-    POLICE(Level.LOCAL);
+    POLICE(Level.LOCAL),
+    MARKET_TRADE(Level.MEMORY),
+    HERALD_ANNOUNCEMENT(Level.LOCAL),
+    WANDERING_TRADER(Level.MEMORY),
+    FIREWORKS(Level.LOCAL);
 
     public enum Level { MEMORY, LOCAL, GLOBAL }
 

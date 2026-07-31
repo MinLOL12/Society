@@ -319,6 +319,11 @@ public final class Settlement {
             case CLOTH: return pop * 0.7;
             case MEDICINE: return pop * 0.5;
             case LUXURY: return pop * 0.25;
+            case BOWS: return Math.max(1, professionCount(SimProfession.GUARD)) * 1.2;
+            case WEAPONS: return Math.max(1, professionCount(SimProfession.GUARD)) * 0.8;
+            case SHIELDS: return Math.max(1, professionCount(SimProfession.GUARD)) * 0.6;
+            case POTIONS: return pop * 0.3;
+            case ENCHANTED: return pop * 0.1;
             default: return pop;
         }
     }

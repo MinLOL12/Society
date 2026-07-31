@@ -12,8 +12,15 @@ import io.github.minlol12.society.core.data.Building;
 import io.github.minlol12.society.core.data.Settlement;
 
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
+import net.minecraft.block.BlockState;
+import net.minecraft.entity.decoration.painting.PaintingEntity;
+import net.minecraft.entity.decoration.painting.PaintingVariant;
 import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
 /**
@@ -79,6 +86,8 @@ public final class ConstructionRenderer {
                     owner.culture().origin(), building.isComplete(), builder);
             if (finished && building.isComplete()) {
                 rendered.add(building.id());
+                // Decorate completed buildings with paintings
+                decorateWithPaintings(world, building);
             }
             done++;
         }
@@ -105,6 +114,92 @@ public final class ConstructionRenderer {
             return ve;
         }
         return null;
+    }
+
+    /**
+     * Scans the interior walls of a completed building and places random
+     * paintings. This makes interiors feel lived-in and culturally rich.
+     * Manors, town halls, libraries, and meeting halls get more paintings.
+     */
+    private void decorateWithPaintings(ServerWorld world, Building building) {
+        Blueprint blueprint = Blueprints.of(building.type());
+        int half = Math.max(blueprint.width(), blueprint.depth()) / 2 + 2;
+        int searchRadius = Math.max(half, 6);
+
+        // Determine how many paintings this building type deserves
+        int maxPaintings;
+        switch (building.type()) {
+            case MANOR: maxPaintings = 5; break;
+            case TOWN_HALL: maxPaintings = 4; break;
+            case LIBRARY: maxPaintings = 3; break;
+            case MEETING_HALL: maxPaintings = 3; break;
+            case SCHOOL: maxPaintings = 2; break;
+            case SHRINE: maxPaintings = 2; break;
+            case INN: maxPaintings = 2; break;
+            case FAMILY_HOUSE: maxPaintings = 1; break;
+            case COTTAGE: maxPaintings = 1; break;
+            default: maxPaintings = 0; break;
+        }
+        if (maxPaintings == 0) return;
+
+        // Count existing paintings nearby
+        List<PaintingEntity> existing = world.getEntitiesByClass(PaintingEntity.class,
+                new Box(building.x() - searchRadius, building.y() - 4, building.z() - searchRadius,
+                        building.x() + searchRadius, building.y() + 16, building.z() + searchRadius),
+                e -> true);
+        int toPlace = maxPaintings - existing.size();
+        if (toPlace <= 0) return;
+
+        // Scan for interior wall surfaces
+        int placed = 0;
+        for (int y = building.y() + 1; y < building.y() + 10 && placed < toPlace; y++) {
+            for (int dx = -searchRadius; dx <= searchRadius && placed < toPlace; dx++) {
+                for (int dz = -searchRadius; dz <= searchRadius && placed < toPlace; dz++) {
+                    if (world.random.nextInt(100) >= 25) continue; // sparse scan
+
+                    int x = building.x() + dx;
+                    int z = building.z() + dz;
+                    BlockPos pos = new BlockPos(x, y, z);
+                    BlockState state = world.getBlockState(pos);
+
+                    // Must be air where painting goes
+                    if (!state.isAir()) continue;
+
+                    // Must have a solid wall behind it
+                    for (Direction dir : Direction.Type.HORIZONTAL) {
+                        BlockPos wallPos = pos.offset(dir);
+                        BlockState wallState = world.getBlockState(wallPos);
+                        if (wallState.isOpaqueFullCube(world, wallPos)) {
+                            // Check no painting already too close
+                            if (!world.getEntitiesByClass(PaintingEntity.class,
+                                    new Box(pos.getX() - 1, pos.getY() - 1, pos.getZ() - 1,
+                                            pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1),
+                                    e -> true).isEmpty()) continue;
+
+                            PaintingEntity painting = new PaintingEntity(world, wallPos, dir.getOpposite());
+                            RegistryEntry<PaintingVariant> variant = randomPaintingVariant(world);
+                            if (variant != null) {
+                                painting.setVariant(variant);
+                                if (painting.canStayAttached()) {
+                                    world.spawnEntity(painting);
+                                    placed++;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Picks a random painting variant from the registry. */
+    private static RegistryEntry<PaintingVariant> randomPaintingVariant(ServerWorld world) {
+        var registry = world.getRegistryManager()
+                .get(net.minecraft.registry.RegistryKeys.PAINTING_VARIANT);
+        var all = registry.streamEntries().toList();
+        if (all.isEmpty()) return null;
+        return all.get(world.random.nextInt(all.size()));
     }
 
     /** A building whose ruin was repaired must be laid down again. */

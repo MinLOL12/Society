@@ -18,6 +18,9 @@ import io.github.minlol12.society.core.data.Building;
 import io.github.minlol12.society.core.data.Citizen;
 import io.github.minlol12.society.core.data.Settlement;
 import io.github.minlol12.society.core.types.EventType;
+import io.github.minlol12.society.core.types.Good;
+import io.github.minlol12.society.core.types.SimProfession;
+import io.github.minlol12.society.core.types.Skill;
 import io.github.minlol12.society.core.types.Trait;
 import io.github.minlol12.society.gui.CitizenScreen;
 import io.github.minlol12.society.gui.SettlementScreen;
@@ -42,8 +45,11 @@ import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.mob.MobEntity;
 import net.minecraft.entity.passive.IronGolemEntity;
 import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.entity.projectile.ArrowEntity;
+import net.minecraft.entity.projectile.FireworkRocketEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.server.MinecraftServer;
@@ -94,6 +100,10 @@ public final class SocietyManager {
     private final Set<UUID> aggressiveVillagers = new HashSet<UUID>();
     private final List<ArrestEscort> activeArrests = new ArrayList<ArrestEscort>();
     private final Map<String, Integer> lastArmyDeployDay = new HashMap<String, Integer>();
+    /** Guards stationed at watchtowers who will shoot arrows at enemies. */
+    private final Map<UUID, String> watchtowerArchers = new HashMap<UUID, String>();
+    private final Map<UUID, Integer> lastArcherShotTick = new HashMap<UUID, Integer>();
+    private final Map<UUID, Integer> watchtowerGuardHome = new HashMap<UUID, Integer>(); // building index
 
     private static class ArrestEscort {
         UUID copId;
@@ -372,6 +382,18 @@ public final class SocietyManager {
         // the optional mod and works with either of its cooking professions.
         feedVillagersFromChefs(currentTick);
 
+        // --- Watchtower Archers: guards on towers shoot bows at enemies ---
+        processWatchtowerArchers(currentTick);
+
+        // --- Village Herald: announces events with particles/sounds ---
+        processVillageHerald(currentTick);
+
+        // --- Wandering Traders: trader entities walk between settlements ---
+        processWanderingTraders(currentTick);
+
+        // --- Festival Fireworks: happy settlements celebrate with fireworks ---
+        processFestivalFireworks(currentTick);
+
         // 2. Military Base Army Deployment when >= 3 hostile mobs attacking villagers
         if (currentTick % 20 == 0) {
             for (Settlement s : engine.settlements().values()) {
@@ -501,6 +523,345 @@ public final class SocietyManager {
                 c.getNavigation().startMovingTo(escort.jailPos.getX(), escort.jailPos.getY(), escort.jailPos.getZ(), 1.25D);
                 p.getNavigation().startMovingTo(c.getX(), c.getY(), c.getZ(), 1.1D);
             }
+        }
+    }
+
+    // =====================================================================
+    // Watchtower Archers: guards stationed at watchtowers use bows
+    // =====================================================================
+
+    /**
+     * Guards at watchtowers scan for hostile mobs in a wide radius and fire
+     * arrows at them. A guard with a bow can pick off threats from the safety
+     * of the tower, giving the settlement real ranged defence. Guards return
+     * to their tower after each volley.
+     */
+    private void processWatchtowerArchers(int currentTick) {
+        if (currentTick % 40 != 0) return; // fire every 2 seconds
+
+        for (Settlement s : engine.settlements().values()) {
+            if (s.isDestroyed()) continue;
+
+            // Find all watchtowers for this settlement
+            List<Building> towers = new ArrayList<Building>();
+            for (Building b : s.buildings()) {
+                if (b.type() == StructureType.WATCHTOWER && b.isComplete() && !b.isRuined()) {
+                    towers.add(b);
+                }
+            }
+            if (towers.isEmpty()) continue;
+
+            // Find hostile mobs near the settlement
+            List<MobEntity> hostiles = overworld.getEntitiesByClass(MobEntity.class,
+                    new Box(s.centerX() - 48, s.centerY() - 16, s.centerZ() - 48,
+                            s.centerX() + 48, s.centerY() + 16, s.centerZ() + 48),
+                    e -> e.isAlive() && e instanceof HostileEntity);
+            if (hostiles.isEmpty()) continue;
+
+            // Find guard villagers near watchtowers who have bows
+            for (UUID uuid : loadedVillagers) {
+                Entity entity = overworld.getEntity(uuid);
+                if (!(entity instanceof VillagerEntity) || !entity.isAlive()) continue;
+                VillagerEntity villager = (VillagerEntity) entity;
+
+                Citizen c = engine.citizenForEntity(uuid.toString());
+                if (c == null || c.profession() != SimProfession.GUARD) continue;
+
+                // Check if this guard is near a watchtower (within 16 blocks)
+                Building nearestTower = null;
+                double nearestDist = Double.MAX_VALUE;
+                for (Building tower : towers) {
+                    double dist = tower.distanceTo((int) villager.getX(), (int) villager.getZ());
+                    if (dist < nearestDist && dist < 16.0) {
+                        nearestDist = dist;
+                        nearestTower = tower;
+                    }
+                }
+                if (nearestTower == null) continue;
+
+                // Guard must have a bow (settlement has bows in stock)
+                if (s.stock(Good.BOWS) < 0.1) continue;
+
+                // Find the nearest hostile target
+                MobEntity target = null;
+                double targetDist = Double.MAX_VALUE;
+                for (MobEntity hostile : hostiles) {
+                    double dist = villager.squaredDistanceTo(hostile);
+                    if (dist < targetDist) {
+                        targetDist = dist;
+                        target = hostile;
+                    }
+                }
+                if (target == null || targetDist > 900.0) continue; // ~30 blocks range
+
+                // Face the target and look down from the tower
+                villager.getLookControl().lookAt(target, 30.0F, 60.0F);
+
+                // Shoot an arrow
+                Integer lastShot = lastArcherShotTick.getOrDefault(uuid, -60);
+                if (currentTick - lastShot.intValue() < 60) continue; // 3-second cooldown
+
+                lastArcherShotTick.put(uuid, Integer.valueOf(currentTick));
+
+                // Create and shoot the arrow from above
+                ArrowEntity arrow = new ArrowEntity(overworld, villager);
+                double dx = target.getX() - villager.getX();
+                double dy = (target.getY() + target.getHeight() * 0.5) - (villager.getY() + 1.5);
+                double dz = target.getZ() - villager.getZ();
+                double dist = Math.sqrt(dx * dx + dz * dz);
+                // Launch with a high arc for the tower elevation advantage
+                arrow.setVelocity(dx, dy + dist * 0.15, dz, 1.6F, 8.0F);
+                arrow.setDamage(4.0 + c.skillLevel(Skill.COMBAT) * 0.05);
+                arrow.setPierceLevel((byte) 1);
+                overworld.spawnEntity(arrow);
+
+                overworld.playSound(null, villager.getX(), villager.getY(), villager.getZ(),
+                        SoundEvents.ENTITY_ARROW_SHOOT, SoundCategory.NEUTRAL, 1.0F, 1.0F);
+
+                // Guards sometimes shout when they fire
+                if (engine.random().nextDouble() < 0.25) {
+                    engine.record(EventType.DEFENCE, s,
+                            "A watchtower guard of " + s.name()
+                                    + " fires upon " + target.getType().getName().getString() + "s!");
+                }
+            }
+        }
+    }
+
+    // =====================================================================
+    // Village Herald: announces settlement events with visible effects
+    // =====================================================================
+
+    /** Last day each settlement had a herald announcement. */
+    private final Map<String, Integer> lastHeraldDay = new HashMap<String, Integer>();
+
+    /**
+     * The village herald stands at the bell plaza or notice board and
+     * broadcasts announcements with sound and visible effects so players
+     * notice something important happened. Births, marriages, discoveries,
+     * and construction are all proclaimed.
+     */
+    private void processVillageHerald(int currentTick) {
+        if (currentTick % 600 != 0) return; // check every 30 seconds
+
+        for (Settlement s : engine.settlements().values()) {
+            if (s.isDestroyed()) continue;
+
+            // Herald needs a notice board, meeting hall, or bell plaza
+            boolean hasHeraldSpot = s.has(StructureType.NOTICE_BOARD)
+                    || s.has(StructureType.BELL_PLAZA)
+                    || s.has(StructureType.MEETING_HALL);
+            if (!hasHeraldSpot) continue;
+
+            Integer lastDay = lastHeraldDay.getOrDefault(s.id(), -5);
+            if (engine.day() - lastDay.intValue() < 1) continue;
+
+            // Check recent chronicle entries for something to announce
+            List<io.github.minlol12.society.core.data.ChronicleEntry> entries = s.chronicle();
+            if (entries.isEmpty()) continue;
+
+            io.github.minlol12.society.core.data.ChronicleEntry latest =
+                    entries.get(entries.size() - 1);
+            if (latest.day() <= lastDay.intValue()) continue;
+
+            lastHeraldDay.put(s.id(), Integer.valueOf(engine.day()));
+
+            // Find the bell or plaza location for the announcement
+            int heraldX = s.centerX();
+            int heraldY = s.centerY();
+            int heraldZ = s.centerZ();
+            for (Building b : s.buildings()) {
+                if (b.type() == StructureType.BELL_PLAZA && b.isComplete()) {
+                    heraldX = b.x();
+                    heraldY = b.y();
+                    heraldZ = b.z();
+                    break;
+                }
+                if (b.type() == StructureType.NOTICE_BOARD && b.isComplete()) {
+                    heraldX = b.x();
+                    heraldY = b.y();
+                    heraldZ = b.z();
+                }
+            }
+
+            // Ring the bell for important events
+            if (latest.type().level() == io.github.minlol12.society.core.types.EventType.Level.GLOBAL
+                    || latest.type() == io.github.minlol12.society.core.types.EventType.MARRIAGE
+                    || latest.type() == io.github.minlol12.society.core.types.EventType.DISCOVERY) {
+                overworld.playSound(null, heraldX, heraldY, heraldZ,
+                        SoundEvents.BLOCK_BELL_USE, SoundCategory.BLOCKS, 2.0F, 1.0F);
+            }
+
+            // Spawn a note particle effect at the herald's position
+            Vec3d heraldPos = new Vec3d(heraldX + 0.5, heraldY + 2.5, heraldZ + 0.5);
+            if (!PlayerLookup.around(overworld, heraldPos, 64.0).isEmpty()) {
+                overworld.spawnParticles(ParticleTypes.POOF,
+                        heraldPos.x, heraldPos.y, heraldPos.z, 5, 0.5, 0.5, 0.5, 0.02);
+            }
+        }
+    }
+
+    // =====================================================================
+    // Wandering Traders: trader entities walk between settlements
+    // =====================================================================
+
+    /** Map of active wandering trader entity UUID -> source settlement ID. */
+    private final Map<UUID, String> wanderingTraders = new HashMap<UUID, String>();
+    /** Track last spawn day per settlement to limit frequency. */
+    private final Map<String, Integer> lastTraderSpawnDay = new HashMap<String, Integer>();
+
+    /**
+     * Periodically spawns wandering trader entities that walk from one
+     * settlement to another carrying goods. Players can see these traders
+     * on the road, creating a living, breathing world with commerce in motion.
+     */
+    private void processWanderingTraders(int currentTick) {
+        if (currentTick % 400 != 0) return; // check every 20 seconds
+
+        // Remove dead/missing traders
+        for (UUID traderId : new ArrayList<UUID>(wanderingTraders.keySet())) {
+            Entity e = overworld.getEntity(traderId);
+            if (e == null || !e.isAlive()) {
+                wanderingTraders.remove(traderId);
+            }
+        }
+
+        // Limit total active traders
+        if (wanderingTraders.size() >= 6) return;
+
+        List<Settlement> alive = new ArrayList<Settlement>();
+        for (Settlement s : engine.settlements().values()) {
+            if (!s.isDestroyed() && s.cachedPopulation() > 3) alive.add(s);
+        }
+        if (alive.size() < 2) return;
+
+        // Pick a settlement to spawn from
+        for (Settlement source : alive) {
+            Integer lastSpawn = lastTraderSpawnDay.getOrDefault(source.id(), -15);
+            if (engine.day() - lastSpawn.intValue() < 8) continue;
+            if (engine.random().nextDouble() >= 0.25) continue;
+
+            // Find a destination settlement (different from source)
+            Settlement dest = null;
+            double bestScore = 0;
+            for (Settlement candidate : alive) {
+                if (candidate.id().equals(source.id())) continue;
+                double distance = source.distanceTo(candidate);
+                if (distance < 50 || distance > 400) continue;
+                double score = candidate.morale() / distance;
+                if (engine.findRoute(source.id(), candidate.id()) != null) score *= 2.0;
+                if (score > bestScore) {
+                    bestScore = score;
+                    dest = candidate;
+                }
+            }
+            if (dest == null) continue;
+
+            lastTraderSpawnDay.put(source.id(), Integer.valueOf(engine.day()));
+
+            // Spawn the trader villager at the source settlement
+            VillagerEntity trader = EntityType.VILLAGER.create(overworld);
+            if (trader == null) continue;
+
+            trader.refreshPositionAndAngles(
+                    source.centerX() + engine.random().nextInt(6) - 3,
+                    source.centerY() + 1,
+                    source.centerZ() + engine.random().nextInt(6) - 3,
+                    engine.random().nextFloat() * 360.0f, 0.0f);
+            trader.setPersistent();
+            trader.setCustomName(Text.literal("Wandering Trader from " + source.name()));
+            trader.setStackInHand(Hand.MAIN_HAND, new ItemStack(Items.EMERALD));
+
+            // Give the trader a walking target toward the destination
+            overworld.spawnEntity(trader);
+            trader.getNavigation().startMovingTo(
+                    dest.centerX(), dest.centerY(), dest.centerZ(), 0.6D);
+
+            wanderingTraders.put(trader.getUuid(), source.id());
+            engine.record(EventType.TRADE_ROUTE, source,
+                    "A trader sets out from " + source.name()
+                            + " heading for " + dest.name() + ".");
+            break; // one trader per pass
+        }
+    }
+
+    // =====================================================================
+    // Festival Fireworks: happy settlements celebrate with fireworks
+    // =====================================================================
+
+    private final Map<String, Integer> lastFireworksDay = new HashMap<String, Integer>();
+
+    /**
+     * Settlements with high morale and enough population occasionally
+     * launch firework rockets during the evening, celebrating their
+     * prosperity. The fireworks go off at the bell plaza or the town
+     * centre and can be heard and seen from a distance.
+     */
+    private void processFestivalFireworks(int currentTick) {
+        // Only during evening hours (12000-18000 game ticks)
+        long timeOfDay = overworld.getTimeOfDay() % 24000;
+        if (timeOfDay < 12000 || timeOfDay > 18000) return;
+        if (currentTick % 60 != 0) return; // check every 3 seconds
+
+        for (Settlement s : engine.settlements().values()) {
+            if (s.isDestroyed()) continue;
+            if (s.morale() < 70.0) continue;
+            if (s.cachedPopulation() < 8) continue;
+
+            Integer lastDay = lastFireworksDay.getOrDefault(s.id(), -3);
+            if (engine.day() - lastDay.intValue() < 2) continue;
+            if (engine.random().nextDouble() >= 0.15) continue;
+
+            lastFireworksDay.put(s.id(), Integer.valueOf(engine.day()));
+
+            // Find the celebration spot
+            int fx = s.centerX();
+            int fy = s.centerY();
+            int fz = s.centerZ();
+            for (Building b : s.buildings()) {
+                if (b.type() == StructureType.BELL_PLAZA && b.isComplete()) {
+                    fx = b.x(); fy = b.y(); fz = b.z(); break;
+                }
+                if (b.type() == StructureType.FOUNTAIN && b.isComplete()) {
+                    fx = b.x(); fy = b.y(); fz = b.z(); break;
+                }
+            }
+
+            // Launch 3-5 fireworks with random colors
+            int count = 3 + engine.random().nextInt(3);
+            ItemStack fireworkStack = new ItemStack(Items.FIREWORK_ROCKET);
+            // Set flight duration and explosion colors via NBT
+            net.minecraft.nbt.NbtCompound fireworks = new net.minecraft.nbt.NbtCompound();
+            fireworks.putByte("Flight", (byte) (1 + engine.random().nextInt(2)));
+            net.minecraft.nbt.NbtList explosions = new net.minecraft.nbt.NbtList();
+            net.minecraft.nbt.NbtCompound explosion = new net.minecraft.nbt.NbtCompound();
+            int[] colors = new int[]{0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF, 0x00FFFF, 0xFFA500};
+            explosion.putIntArray("Colors", new int[]{
+                    colors[engine.random().nextInt(colors.length)],
+                    colors[engine.random().nextInt(colors.length)]
+            });
+            explosion.putByte("Type", (byte) engine.random().nextInt(4));
+            explosions.add(explosion);
+            fireworks.put("Explosions", explosions);
+            fireworkStack.getOrCreateNbt().put("Fireworks", fireworks);
+
+            for (int i = 0; i < count; i++) {
+                double offsetX = (engine.random().nextDouble() - 0.5) * 8;
+                double offsetZ = (engine.random().nextDouble() - 0.5) * 8;
+                FireworkRocketEntity firework = new FireworkRocketEntity(
+                        overworld,
+                        fx + 0.5 + offsetX, fy + 3, fz + 0.5 + offsetZ,
+                        fireworkStack.copy());
+                overworld.spawnEntity(firework);
+            }
+
+            overworld.playSound(null, fx, fy + 3, fz,
+                    SoundEvents.ENTITY_FIREWORK_ROCKET_LAUNCH, SoundCategory.AMBIENT,
+                    1.5F, 0.8F + engine.random().nextFloat() * 0.4F);
+
+            engine.record(EventType.FESTIVAL, s,
+                    s.name() + " celebrates with fireworks! The sky lights up"
+                            + " over the " + s.culture().origin().festivalName().toLowerCase() + ".");
         }
     }
 
