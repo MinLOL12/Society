@@ -84,7 +84,7 @@ public final class ConstructionSystem {
             if (worker != null) {
                 site.setWorkerId(worker.id());
             }
-            boolean finished = site.addWork(perSite, engine.day());
+            boolean finished = site.addWork(site.totalWork() / 10.0, engine.day());
             if (worker != null) {
                 worker.gainXp(Skill.BUILDING, 0.9
                         * worker.personality().archetype().aptitude(Skill.BUILDING));
@@ -156,7 +156,7 @@ public final class ConstructionSystem {
 
         payFor(s, next);
         Blueprint blueprint = Blueprints.of(next);
-        double work = next.labour() + blueprint.totalEffort() * 0.15;
+        double work = 10.0;
         Building building = new Building(UUID.randomUUID().toString(), next,
                 plot[0], plot[1], plot[2], plot[3], work, engine.day());
         s.buildings().add(building);
@@ -294,6 +294,12 @@ public final class ConstructionSystem {
         if (type == StructureType.TOWN_WELL || type == StructureType.BELL_PLAZA) {
             score += 1.4;
         }
+        if (type == StructureType.MILITARY_BASE) {
+            score += (engine.isAtWar(s.id()) || s.threatLevel() > 1.5) ? 2.5 : 0.8;
+        }
+        if (type == StructureType.JAIL) {
+            score += 0.6;
+        }
 
         // Don't put up the fifth market stall before the first smithy.
         score -= existing * 0.25;
@@ -359,7 +365,7 @@ public final class ConstructionSystem {
             int x = s.centerX() + (int) Math.round(Math.cos(angle) * ring);
             int z = s.centerZ() + (int) Math.round(Math.sin(angle) * ring);
 
-            if (overlaps(s, x, z, need)) continue;
+            if (overlaps(engine, s, x, z, need)) continue;
 
             // Face the building toward the settlement centre so doors open
             // onto the town rather than the wilderness.
@@ -369,10 +375,12 @@ public final class ConstructionSystem {
         return null;
     }
 
-    private static boolean overlaps(Settlement s, int x, int z, int need) {
-        for (Building b : s.buildings()) {
-            double gap = b.distanceTo(x, z);
-            if (gap < need + b.radius()) return true;
+    private static boolean overlaps(SocietyEngine engine, Settlement s, int x, int z, int need) {
+        for (Settlement other : engine.settlements().values()) {
+            for (Building b : other.buildings()) {
+                double gap = b.distanceTo(x, z);
+                if (gap < need + b.radius() + 4) return true;
+            }
         }
         return false;
     }

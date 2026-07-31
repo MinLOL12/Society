@@ -12,6 +12,7 @@ import io.github.minlol12.society.core.data.Building;
 import io.github.minlol12.society.core.data.Settlement;
 
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
+import net.minecraft.entity.passive.VillagerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Vec3d;
 
@@ -71,14 +72,37 @@ public final class ConstructionRenderer {
             Building building = queue.get(index);
             Settlement owner = owners.get(index);
             if (!chunkReady(building)) continue;
+            VillagerEntity builder = findBuilderEntity(building, owner);
             boolean finished = StructureBuilder.placeNextSlice(world, building,
-                    owner.culture().origin(), building.isComplete());
+                    owner.culture().origin(), building.isComplete(), builder);
             if (finished && building.isComplete()) {
                 rendered.add(building.id());
             }
             done++;
         }
         cursor = queue.isEmpty() ? 0 : (cursor + done + 1) % queue.size();
+    }
+
+    private VillagerEntity findBuilderEntity(Building building, Settlement owner) {
+        if (!building.workerId().isEmpty()) {
+            io.github.minlol12.society.core.data.Citizen c = engine.citizens().get(building.workerId());
+            if (c != null && !c.entityUuid().isEmpty()) {
+                try {
+                    net.minecraft.entity.Entity e = world.getEntity(java.util.UUID.fromString(c.entityUuid()));
+                    if (e instanceof VillagerEntity && e.isAlive()) {
+                        return (VillagerEntity) e;
+                    }
+                } catch (IllegalArgumentException ignored) { }
+            }
+        }
+        List<VillagerEntity> nearby = world.getEntitiesByClass(VillagerEntity.class,
+                new net.minecraft.util.math.Box(building.x() - 64, building.y() - 32, building.z() - 64,
+                        building.x() + 64, building.y() + 32, building.z() + 64),
+                e -> e.isAlive());
+        for (VillagerEntity ve : nearby) {
+            return ve;
+        }
+        return null;
     }
 
     /** A building whose ruin was repaired must be laid down again. */

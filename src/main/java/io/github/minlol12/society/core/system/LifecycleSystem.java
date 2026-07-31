@@ -149,12 +149,9 @@ public final class LifecycleSystem {
             if (!c.isAlive()) continue;
             int age = c.ageYears(day);
             if (age < 55) continue;
-            // Real villagers live by Minecraft rules; the ledger only
-            // carries off those who exist only in memory.
-            if (c.isManifested()) continue;
-            double chance = (age - 50) * 0.004 * deathMod;
+            double chance = (age - 50) * 0.005 * deathMod;
             if (c.personalWealth() > 30) chance *= 0.85; // comfort softens the years
-            if (random.nextDouble() < chance) {
+            if (age >= 80 || random.nextDouble() < chance) {
                 engine.handleCitizenDeath(c,
                         "passed away in their sleep at the age of " + age, false);
             }

@@ -146,11 +146,9 @@ public final class Blueprint {
             for (int x = minX; x <= maxX; x++) {
                 set(x, y, near, edge);
                 set(x, y, far, edgeBack);
-                // Hollow the space the next course will sit above, so the
-                // attic is open instead of a solid block of roofing.
                 for (int z = near + 1; z <= far - 1; z++) {
-                    if (at(x, y, z) == Mat.SKIP) {
-                        set(x, y, z, Mat.AIR);
+                    if (at(x, y, z) == Mat.SKIP || at(x, y, z) == Mat.AIR) {
+                        set(x, y, z, (x == minX || x == maxX) ? Mat.WALL : Mat.AIR);
                     }
                 }
             }
@@ -158,13 +156,14 @@ public final class Blueprint {
 
         // Cap the ridge. An odd span meets on a single line; an even span
         // needs two, or the very top of the roof would be left open.
-        int ridgeY = yStart + steps;
         if (span % 2 == 1) {
+            int ridgeY = yStart + steps - 1;
             int z = minZ + steps;
             for (int x = minX; x <= maxX; x++) {
                 set(x, ridgeY, z, solid);
             }
         } else {
+            int ridgeY = yStart + steps;
             for (int x = minX; x <= maxX; x++) {
                 set(x, ridgeY, minZ + steps - 1, solid);
                 set(x, ridgeY, minZ + steps, solid);

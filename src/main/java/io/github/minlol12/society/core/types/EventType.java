@@ -44,7 +44,9 @@ public enum EventType {
     FAMINE(Level.LOCAL),
     FIRE(Level.LOCAL),
     PLAGUE(Level.GLOBAL),
-    RAID(Level.LOCAL);
+    RAID(Level.LOCAL),
+    DEFENCE(Level.LOCAL),
+    POLICE(Level.LOCAL);
 
     public enum Level { MEMORY, LOCAL, GLOBAL }
 

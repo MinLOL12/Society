@@ -16,8 +16,11 @@ import net.minecraft.block.DoorBlock;
 import net.minecraft.block.enums.BedPart;
 import net.minecraft.block.enums.DoubleBlockHalf;
 import net.minecraft.block.enums.SlabType;
+import net.minecraft.entity.passive.VillagerEntity;
+import net.minecraft.sound.SoundCategory;
 import net.minecraft.state.property.Properties;
 import net.minecraft.server.world.ServerWorld;
+import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.Heightmap;
@@ -33,7 +36,7 @@ import net.minecraft.world.Heightmap;
 public final class StructureBuilder {
 
     /** Cells laid per building per tick of the builder (one in-game day). */
-    private static final int CELLS_PER_PASS = 220;
+    private static final int CELLS_PER_PASS = 600;
 
     private StructureBuilder() { }
 
@@ -43,6 +46,12 @@ public final class StructureBuilder {
      */
     public static boolean placeNextSlice(ServerWorld world, Building building,
                                          CultureOrigin origin, boolean finishAll) {
+        return placeNextSlice(world, building, origin, finishAll, null);
+    }
+
+    public static boolean placeNextSlice(ServerWorld world, Building building,
+                                         CultureOrigin origin, boolean finishAll,
+                                         VillagerEntity builder) {
         Blueprint blueprint = Blueprints.of(building.type());
         List<Blueprint.Cell> cells = blueprint.orderedCells();
         if (cells.isEmpty()) return true;
@@ -50,8 +59,6 @@ public final class StructureBuilder {
         CulturePalette palette = CulturePalette.of(origin);
         int from = Math.min(building.placedCells(), cells.size());
 
-        // How much of the building should stand by now: the world never
-        // runs ahead of the labour the settlement has actually put in.
         int target = finishAll
                 ? cells.size()
                 : (int) Math.floor(cells.size() * building.fraction());
@@ -60,12 +67,25 @@ public final class StructureBuilder {
 
         BlockPos anchor = groundAnchor(world, building, blueprint);
 
+        if (builder != null && from < cells.size() && !finishAll) {
+            Blueprint.Cell c = cells.get(from);
+            BlockPos targetPos = anchor.add(rotateX(c, blueprint, building.rotation()),
+                    c.y + blueprint.baseOffset(),
+                    rotateZ(c, blueprint, building.rotation()));
+            builder.getNavigation().startMovingTo(targetPos.getX(), targetPos.getY(), targetPos.getZ(), 1.15D);
+            builder.getLookControl().lookAt(targetPos.getX() + 0.5D, targetPos.getY() + 0.5D, targetPos.getZ() + 0.5D);
+            builder.swingHand(Hand.MAIN_HAND, true);
+        }
+
         for (int i = from; i < limit; i++) {
             Blueprint.Cell cell = cells.get(i);
             BlockPos pos = anchor.add(rotateX(cell, blueprint, building.rotation()),
                     cell.y + blueprint.baseOffset(),
                     rotateZ(cell, blueprint, building.rotation()));
-            place(world, pos, cell.mat, palette, building.rotation());
+            if (cell.y == 0) {
+                ensureFoundation(world, pos);
+            }
+            place(world, pos, cell.mat, palette, building.rotation(), builder);
         }
         building.setPlacedCells(limit);
         return limit >= cells.size();
@@ -96,8 +116,54 @@ public final class StructureBuilder {
     public static BlockPos groundAnchor(ServerWorld world, Building building, Blueprint blueprint) {
         int cornerX = building.x() - blueprint.width() / 2;
         int cornerZ = building.z() - blueprint.depth() / 2;
-        int surface = world.getTopY(Heightmap.Type.WORLD_SURFACE_WG, building.x(), building.z());
-        return new BlockPos(cornerX, surface, cornerZ);
+        int cY = findSolidGroundY(world, building.x(), building.z());
+        int y1 = findSolidGroundY(world, cornerX, cornerZ);
+        int y2 = findSolidGroundY(world, cornerX + blueprint.width() - 1, cornerZ);
+        int y3 = findSolidGroundY(world, cornerX, cornerZ + blueprint.depth() - 1);
+        int y4 = findSolidGroundY(world, cornerX + blueprint.width() - 1, cornerZ + blueprint.depth() - 1);
+        int minSurface = Math.min(cY, Math.min(Math.min(y1, y2), Math.min(y3, y4)));
+        return new BlockPos(cornerX, minSurface, cornerZ);
+    }
+
+    private static int findSolidGroundY(ServerWorld world, int x, int z) {
+        int y = world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+        while (y > world.getBottomY() + 5) {
+            BlockState state = world.getBlockState(new BlockPos(x, y, z));
+            if (!state.isAir() && !state.isReplaceable() && state.isOpaqueFullCube(world, new BlockPos(x, y, z))) {
+                String name = state.getBlock().getTranslationKey().toLowerCase();
+                if (!name.contains("leaves") && !name.contains("log") && !name.contains("wood")
+                        && !name.contains("stair") && !name.contains("slab") && !name.contains("roof")
+                        && !name.contains("planks") && !name.contains("door") && !name.contains("bed")) {
+                    return y + 1;
+                }
+            }
+            y--;
+        }
+        return world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x, z);
+    }
+
+    private static void ensureFoundation(ServerWorld world, BlockPos pos) {
+        BlockPos.Mutable cur = pos.down().mutableCopy();
+        for (int step = 0; step < 12; step++) {
+            if (world.isOutOfHeightLimit(cur)) break;
+            BlockState state = world.getBlockState(cur);
+            if (state.isOpaqueFullCube(world, cur) && !state.isReplaceable()) break;
+            world.setBlockState(cur, Blocks.DIRT.getDefaultState(), Block.NOTIFY_LISTENERS);
+            cur.move(Direction.DOWN);
+        }
+    }
+
+    private static void ensureSolidContainer(ServerWorld world, BlockPos pos) {
+        ensureFoundation(world, pos);
+        for (Direction dir : Direction.Type.HORIZONTAL) {
+            BlockPos side = pos.offset(dir);
+            BlockState state = world.getBlockState(side);
+            if (state.isAir() || state.isReplaceable() || (!state.isOpaqueFullCube(world, side)
+                    && !state.isOf(Blocks.FARMLAND) && !state.isOf(Blocks.WATER))) {
+                world.setBlockState(side, Blocks.DIRT.getDefaultState(), Block.NOTIFY_LISTENERS);
+                ensureFoundation(world, side);
+            }
+        }
     }
 
     private static int rotateX(Blueprint.Cell cell, Blueprint bp, int rotation) {
@@ -133,7 +199,8 @@ public final class StructureBuilder {
     // =====================================================================
 
     private static void place(ServerWorld world, BlockPos pos, Mat mat,
-                              CulturePalette palette, int rotation) {
+                              CulturePalette palette, int rotation,
+                              VillagerEntity builder) {
         if (mat == Mat.SKIP) return;
         if (world.isOutOfHeightLimit(pos)) return;
 
@@ -151,9 +218,17 @@ public final class StructureBuilder {
         switch (mat) {
             case DOOR:
                 placeDoor(world, pos, block, front);
+                if (builder != null) {
+                    world.playSound(null, pos, block.getDefaultState().getSoundGroup().getPlaceSound(),
+                            SoundCategory.BLOCKS, 0.8F, 1.0F);
+                }
                 return;
             case BED:
                 placeBed(world, pos, block, front);
+                if (builder != null) {
+                    world.playSound(null, pos, block.getDefaultState().getSoundGroup().getPlaceSound(),
+                            SoundCategory.BLOCKS, 0.8F, 1.0F);
+                }
                 return;
             case STAIR:
             case ROOF:
@@ -242,13 +317,22 @@ public final class StructureBuilder {
                 }
                 break;
             case WATER:
+                ensureSolidContainer(world, pos);
                 world.setBlockState(pos, Blocks.WATER.getDefaultState(), Block.NOTIFY_ALL);
+                if (builder != null) {
+                    world.playSound(null, pos, Blocks.WATER.getDefaultState().getSoundGroup().getPlaceSound(),
+                            SoundCategory.BLOCKS, 0.8F, 1.0F);
+                }
                 return;
             default:
                 break;
         }
 
         world.setBlockState(pos, state, Block.NOTIFY_LISTENERS);
+        if (builder != null) {
+            world.playSound(null, pos, state.getSoundGroup().getPlaceSound(),
+                    SoundCategory.BLOCKS, 0.8F, 1.0F);
+        }
     }
 
     /**
