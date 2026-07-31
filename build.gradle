@@ -42,9 +42,14 @@ dependencies {
 	modRuntimeOnly "curse.maven:adorabuild-structures-883352:5714699"
 
 	// Chef's Delight [Fabric] (file 7335194) provides Cook and Chef villager
-	// professions. File 8547913 is its required food-library dependency.
+	// professions. It requires the Fabric port of Farmer's Delight at runtime.
 	modRuntimeOnly "curse.maven:chefs-delight-fabric-736986:7335194"
-	modRuntimeOnly "curse.maven:farmers-delight-fabric-398521:8547913"
+
+	// 398521 is the Forge Farmer's Delight project, not its Fabric port.  Although
+	// 8547913 is a valid CurseForge file ID, it is not a downloadable artifact for
+	// this Fabric dependency through CurseMaven.  Use the actual Fabric project and
+	// its 1.20/1.20.1 release instead.
+	modRuntimeOnly "curse.maven:farmers-delight-fabric-482834:4939709"
 }
 
 processResources {
