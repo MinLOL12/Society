@@ -19,7 +19,7 @@ public final class Blueprints {
         CTOV_PATHS.put(StructureType.COTTAGE, "village/plains/house");
         CTOV_PATHS.put(StructureType.FAMILY_HOUSE, "village/plains/house_large");
         CTOV_PATHS.put(StructureType.BARN, "village/plains/barn");
-        CTOV_PATHS.put(StructureType.BLACKSMITH, "village/plains/smithy");
+        CTOV_PATHS.put(StructureType.SMITHY, "village/plains/smithy");
         CTOV_PATHS.put(StructureType.TOWN_HALL, "village/plains/temple");
         // Add more mappings for other StructureTypes as needed
     }
