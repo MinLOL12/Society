@@ -17,6 +17,9 @@ public final class SocietyItems {
     /** A herald's stick for setting two civilizations at war. */
     public static final Item WAR_BATON = new WarBatonItem(new Item.Settings().maxCount(1));
 
+    /** A builder's stick for claiming player structures. */
+    public static final Item SETTER_STICK = new SetterStickItem(new Item.Settings().maxCount(1));
+
     private SocietyItems() { }
 
     public static void register() {
@@ -24,10 +27,13 @@ public final class SocietyItems {
                 new Identifier(SocietyMod.MOD_ID, "society_chronicle"), SOCIETY_CHRONICLE);
         Registry.register(Registries.ITEM,
                 new Identifier(SocietyMod.MOD_ID, "war_baton"), WAR_BATON);
+        Registry.register(Registries.ITEM,
+                new Identifier(SocietyMod.MOD_ID, "setter_stick"), SETTER_STICK);
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS)
                 .register(entries -> {
                     entries.add(SOCIETY_CHRONICLE);
                     entries.add(WAR_BATON);
+                    entries.add(SETTER_STICK);
                 });
     }
 }

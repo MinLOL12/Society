@@ -16,6 +16,8 @@ import io.github.minlol12.society.core.VillagerSnapshot;
 import io.github.minlol12.society.core.build.StructureType;
 import io.github.minlol12.society.core.data.Building;
 import io.github.minlol12.society.core.data.Citizen;
+import io.github.minlol12.society.core.data.DiplomaticRelation;
+import io.github.minlol12.society.core.data.PlayerData;
 import io.github.minlol12.society.core.data.Settlement;
 import io.github.minlol12.society.core.types.EventType;
 import io.github.minlol12.society.core.types.Good;
@@ -104,6 +106,14 @@ public final class SocietyManager {
     private final Map<UUID, String> watchtowerArchers = new HashMap<UUID, String>();
     private final Map<UUID, Integer> lastArcherShotTick = new HashMap<UUID, Integer>();
     private final Map<UUID, Integer> watchtowerGuardHome = new HashMap<UUID, Integer>(); // building index
+    /** Baby villagers at play: chaser uuid -> chased uuid (a game of tag). */
+    private final Map<UUID, UUID> kidTagTargets = new HashMap<UUID, UUID>();
+    /** Next server tick a baby may think again about playing or hiding. */
+    private final Map<UUID, Integer> kidNextThinkTick = new HashMap<UUID, Integer>();
+    /** Soldiers sent out by settlements at war: uuid -> spawn game time. */
+    private final Map<UUID, Long> warRaiders = new HashMap<UUID, Long>();
+    /** The enemy settlement each raider was sent to attack: uuid -> settlement id. */
+    private final Map<UUID, String> warRaiderTargets = new HashMap<UUID, String>();
 
     private static class ArrestEscort {
         UUID copId;
@@ -203,6 +213,7 @@ public final class SocietyManager {
         }
 
         processLiveWorldInteractions();
+        trackPlayers();
 
         int day = (int) (overworld.getTimeOfDay() / 24000L);
         if (day == lastProcessedDay) {
@@ -523,6 +534,285 @@ public final class SocietyManager {
                 c.getNavigation().startMovingTo(escort.jailPos.getX(), escort.jailPos.getY(), escort.jailPos.getZ(), 1.25D);
                 p.getNavigation().startMovingTo(c.getX(), c.getY(), c.getZ(), 1.1D);
             }
+        }
+
+        // 4. The kids play, chase each other - and bolt indoors when the
+        //    world turns scary.
+        processKids(currentTick);
+
+        // 5. Wars put soldiers on the march between the belligerent towns.
+        processWarRaiders(currentTick);
+    }
+
+    // =====================================================================
+    // Player tracking, children at play, and wars marching across the map
+    // =====================================================================
+
+    /**
+     * Gives every online player a ledger page (role, home settlement, purse)
+     * and, on first sight, quietly attaches them to the nearest settlement.
+     */
+    private void trackPlayers() {
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            PlayerData data = engine.playerDataFor(player.getUuidAsString(),
+                    player.getGameProfile().getName());
+            data.noteSeen(engine.day());
+            if (data.homeSettlementId().isEmpty()) {
+                Settlement near = engine.findSettlementNear(
+                        (int) Math.floor(player.getX()), (int) Math.floor(player.getZ()), 384);
+                if (near != null) {
+                    data.setHomeSettlementId(near.id());
+                    engine.markDirty();
+                }
+            }
+        }
+    }
+
+    /**
+     * The kid update. Baby villagers play tag: they chase each other around
+     * the settlement, squealing and laughing. The moment something bad is
+     * happening - a war, raiders, a threat at the gate, a famine - they stop
+     * playing and run inside the nearest house, where they stay until the
+     * trouble passes.
+     */
+    private void processKids(int currentTick) {
+        for (UUID uuid : new ArrayList<UUID>(loadedVillagers)) {
+            Entity entity = overworld.getEntity(uuid);
+            if (!(entity instanceof VillagerEntity) || !entity.isAlive()) {
+                continue;
+            }
+            VillagerEntity kid = (VillagerEntity) entity;
+            if (!kid.isBaby()) {
+                continue;
+            }
+            Citizen citizen = engine.citizenForEntity(uuid.toString());
+            Settlement home = citizen == null || citizen.homeSettlementId().isEmpty()
+                    ? null : engine.settlements().get(citizen.homeSettlementId());
+
+            Integer nextThink = kidNextThinkTick.get(uuid);
+            if (nextThink != null && nextThink.intValue() > currentTick) {
+                // While danger lasts, a hidden child is pressed back into the
+                // shelter so they genuinely stay put instead of wandering out.
+                if (kidDanger(kid, home)) {
+                    moveKidToShelter(kid, home);
+                }
+                continue;
+            }
+            kidNextThinkTick.put(uuid, Integer.valueOf(currentTick + 60));
+
+            if (kidDanger(kid, home)) {
+                moveKidToShelter(kid, home);
+            } else {
+                playTag(kid);
+            }
+        }
+    }
+
+    /** Wars, raids, threats at the gate, or famine - anything bad. */
+    private boolean kidDanger(VillagerEntity kid, Settlement home) {
+        if (home != null) {
+            if (engine.isAtWar(home.id())) return true;
+            if (home.threatLevel() >= 2.0) return true;
+            if (home.famineDays() > 0) return true;
+        }
+        List<HostileEntity> hostiles = overworld.getEntitiesByClass(HostileEntity.class,
+                kid.getBoundingBox().expand(24.0), e -> e.isAlive());
+        if (!hostiles.isEmpty()) return true;
+        // War raiders marching on the town scare the children too.
+        for (UUID raiderId : warRaiders.keySet()) {
+            Entity raider = overworld.getEntity(raiderId);
+            if (raider != null && raider.isAlive()
+                    && raider.squaredDistanceTo(kid) < 36.0 * 36.0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Runs the child into the nearest finished building and keeps them there. */
+    private void moveKidToShelter(VillagerEntity kid, Settlement home) {
+        BlockPos shelter = null;
+        double bestDist = Double.MAX_VALUE;
+        if (home != null) {
+            for (Building b : home.buildings()) {
+                if (!b.isComplete() || b.isRuined()) continue;
+                double d = kid.squaredDistanceTo(b.x() + 0.5, b.y() + 1, b.z() + 0.5);
+                if (d < bestDist) {
+                    bestDist = d;
+                    shelter = new BlockPos(b.x(), b.y() + 1, b.z());
+                }
+            }
+        }
+        if (shelter == null && home != null) {
+            shelter = new BlockPos(home.centerX(), home.centerY(), home.centerZ());
+        }
+        if (shelter == null) {
+            return;
+        }
+        kid.getNavigation().startMovingTo(shelter.getX() + 0.5, shelter.getY(),
+                shelter.getZ() + 0.5, 1.35D);
+        kid.getLookControl().lookAt(shelter.getX() + 0.5, shelter.getY() + 1,
+                shelter.getZ() + 0.5, 20.0F, 20.0F);
+    }
+
+    /** A baby villager chases a playmate; on catching them the roles swap. */
+    private void playTag(VillagerEntity kid) {
+        UUID me = kid.getUuid();
+        UUID targetId = kidTagTargets.get(me);
+        VillagerEntity target = null;
+        if (targetId != null) {
+            Entity e = overworld.getEntity(targetId);
+            if (e instanceof VillagerEntity ve && ve.isAlive() && ve.isBaby()
+                    && kid.squaredDistanceTo(ve) < 24.0 * 24.0) {
+                target = ve;
+            } else {
+                kidTagTargets.remove(me);
+            }
+        }
+        if (target == null) {
+            List<VillagerEntity> playmates = overworld.getEntitiesByClass(VillagerEntity.class,
+                    kid.getBoundingBox().expand(14.0),
+                    e -> e != kid && e.isAlive() && e.isBaby());
+            if (playmates.isEmpty()) {
+                return;
+            }
+            target = playmates.get(overworld.random.nextInt(playmates.size()));
+            kidTagTargets.put(me, target.getUuid());
+        }
+
+        // Tag! The chased child becomes the chaser.
+        if (kid.squaredDistanceTo(target) < 3.5) {
+            kidTagTargets.remove(me);
+            kidTagTargets.put(target.getUuid(), me);
+            overworld.playSound(null, kid.getX(), kid.getY(), kid.getZ(),
+                    SoundEvents.ENTITY_VILLAGER_CELEBRATE, SoundCategory.NEUTRAL, 0.6F, 1.2F);
+        }
+
+        kid.getNavigation().startMovingTo(target.getX(), target.getY(),
+                target.getZ(), 1.4D);
+        kid.getLookControl().lookAt(target, 30.0F, 30.0F);
+        if (overworld.random.nextInt(5) == 0) {
+            kid.swingHand(Hand.MAIN_HAND, true);
+        }
+    }
+
+    /**
+     * While two settlements are at war, each side sends its own soldiers out
+     * to march on the enemy town - visible raiders in the world, not just a
+     * ledger counter. The soldiers fight the defenders they find, and the
+     * town's brave villagers fight back.
+     */
+    private void processWarRaiders(int currentTick) {
+        // Raiders fight and march every tick so battles move smoothly;
+        // there are never many of them at once.
+        for (UUID id : new ArrayList<UUID>(warRaiders.keySet())) {
+            Entity entity = overworld.getEntity(id);
+            if (!(entity instanceof VillagerEntity) || !entity.isAlive()) {
+                warRaiders.remove(id);
+                warRaiderTargets.remove(id);
+                continue;
+            }
+            VillagerEntity raider = (VillagerEntity) entity;
+            String enemyId = warRaiderTargets.get(id);
+            Settlement enemy = enemyId == null ? null : engine.settlements().get(enemyId);
+            if (enemy == null) {
+                continue;
+            }
+            List<VillagerEntity> foes = overworld.getEntitiesByClass(VillagerEntity.class,
+                    raider.getBoundingBox().expand(10.0),
+                    v -> v != raider && v.isAlive() && !warRaiders.containsKey(v.getUuid())
+                            && isEnemyVillager(v, enemyId));
+            if (foes.isEmpty()) {
+                // Keep marching until the enemy town is reached.
+                raider.getNavigation().startMovingTo(enemy.centerX() + 0.5, enemy.centerY(),
+                        enemy.centerZ() + 0.5, 1.25D);
+                continue;
+            }
+            VillagerEntity foe = foes.get(0);
+            raider.setTarget(foe);
+            raider.getNavigation().startMovingTo(foe, 1.2D);
+            raider.getLookControl().lookAt(foe, 30.0F, 30.0F);
+            if (currentTick % 20 == 0 && raider.squaredDistanceTo(foe) < 4.0) {
+                foe.damage(overworld.getDamageSources().mobAttack(raider), 3.0F);
+                raider.swingHand(Hand.MAIN_HAND, true);
+                overworld.playSound(null, raider.getX(), raider.getY(), raider.getZ(),
+                        SoundEvents.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.NEUTRAL, 1.0F, 1.0F);
+            }
+        }
+
+        // A new push of soldiers every ten seconds, while the war lasts.
+        if (currentTick % 200 != 0) return;
+
+        // Old soldiers go home: no army marches forever.
+        long now = overworld.getTime();
+        for (UUID id : new ArrayList<UUID>(warRaiders.keySet())) {
+            if (now - warRaiders.get(id) > 1200L) {
+                Entity e = overworld.getEntity(id);
+                if (e != null) {
+                    e.discard();
+                }
+                warRaiders.remove(id);
+                warRaiderTargets.remove(id);
+            }
+        }
+
+        for (Settlement attacker : engine.settlements().values()) {
+            if (attacker.isDestroyed() || !engine.isAtWar(attacker.id())) {
+                continue;
+            }
+            Settlement enemy = firstWarEnemy(attacker);
+            if (enemy == null) {
+                continue;
+            }
+            // Only march where chunks are actually live, so the fight happens
+            // on a stage somebody can watch.
+            if (!overworld.isChunkLoaded(enemy.centerX() >> 4, enemy.centerZ() >> 4)) {
+                continue;
+            }
+            int squad = 1 + overworld.random.nextInt(2);
+            for (int i = 0; i < squad; i++) {
+                if (warRaiders.size() >= 24) break;
+                spawnRaider(attacker, enemy);
+            }
+        }
+    }
+
+    /** Only villagers whose home is the enemy settlement count as foes. */
+    private boolean isEnemyVillager(VillagerEntity v, String enemySettlementId) {
+        Citizen c = engine.citizenForEntity(v.getUuidAsString());
+        if (c != null) {
+            return enemySettlementId.equals(c.homeSettlementId());
+        }
+        return false;
+    }
+
+    private Settlement firstWarEnemy(Settlement s) {
+        for (DiplomaticRelation r : engine.relationsInvolving(s.id())) {
+            if (!r.treaty().atWar()) continue;
+            String otherId = r.other(s.id());
+            if (otherId == null) continue;
+            Settlement other = engine.settlements().get(otherId);
+            if (other != null && !other.isDestroyed()) return other;
+        }
+        return null;
+    }
+
+    private void spawnRaider(Settlement attacker, Settlement enemy) {
+        int fromX = attacker.centerX() + (overworld.random.nextInt(21) - 10);
+        int fromZ = attacker.centerZ() + (overworld.random.nextInt(21) - 10);
+        int y = overworld.getTopY(Heightmap.Type.MOTION_BLOCKING, fromX, fromZ) + 1;
+        VillagerEntity raider = EntityType.VILLAGER.create(overworld);
+        if (raider == null) return;
+        raider.refreshPositionAndAngles(fromX + 0.5, y, fromZ + 0.5, 0.0F, 0.0F);
+        raider.setPersistent();
+        raider.setCustomName(Text.literal(attacker.name() + " Raider").formatted(Formatting.RED));
+        raider.setCustomNameVisible(true);
+        raider.setStackInHand(Hand.MAIN_HAND, new ItemStack(Items.IRON_SWORD));
+        raider.getNavigation().startMovingTo(enemy.centerX() + 0.5, enemy.centerY(),
+                enemy.centerZ() + 0.5, 1.25D);
+        if (overworld.spawnEntity(raider)) {
+            warRaiders.put(raider.getUuid(), overworld.getTime());
+            warRaiderTargets.put(raider.getUuid(), enemy.id());
         }
     }
 

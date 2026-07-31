@@ -231,10 +231,18 @@ public final class DiplomacySystem {
 
         int powerA = warPower(engine, a);
         int powerB = warPower(engine, b);
-        int sway = Integer.compare(powerA, powerB) * Math.min(2, Math.abs(powerA - powerB) / 3 + 1);
+        // A war must always move somewhere: evenly matched towns trade blows
+        // rather than staring at each other across an empty field.
+        int sign;
+        if (powerA == powerB) {
+            sign = random.nextBoolean() ? 1 : -1;
+        } else {
+            sign = Integer.compare(powerA, powerB);
+        }
+        int sway = sign * Math.max(1, Math.min(2, Math.abs(powerA - powerB) / 3 + 1));
         relation.addWarScore(sway);
 
-        if (random.nextDouble() < 0.3) {
+        if (random.nextDouble() < 0.5) {
             Settlement loser = powerA < powerB ? a : b;
             Settlement winner = loser == a ? b : a;
             // The loser is plundered; guards bleed; history remembers.
@@ -259,9 +267,10 @@ public final class DiplomacySystem {
                     }
                 }
             }
-            if (random.nextDouble() < 0.5) {
+            if (random.nextDouble() < 0.6) {
                 engine.recordBilateral(EventType.BATTLE, winner, loser,
-                        "Battle near " + loser.name() + ": the warriors of "
+                        "Battle near " + loser.name() + " (" + loser.centerX()
+                                + ", " + loser.centerZ() + "): the warriors of "
                                 + winner.name() + " prevailed.");
             }
         }

@@ -203,14 +203,99 @@ it. The same trip is available on demand with `/society visit <name>`.
 Craft: **stick + iron ingot + redstone** (shapeless). It looks like a
 plain stick, but it carries a herald's authority.
 
-* Right-click the ground near one village to **mark** it.
+* Right-click (the ground, or just the air) near one village to **mark**
+  it. The baton's name shows the mark, and it is judged from where you
+  stand - no need to click a specific block.
 * Right-click near a second, different village to **declare war** between
   the two - instantly, no matter how far apart they are or how friendly
   they were. The decree is written into both chronicles and the world's.
-* Right-click in the air to **clear** the current mark.
+* Right-click in the wilderness (or at the marked village) to **clear**
+  the mark; sneak-right-click in the air to read it back.
 
 Wars started this way play out like any other: battles, plunder, war
-scores, and a truce or tribute at the end.
+scores, and a truce or tribute at the end. When the decree lands, the two
+towns' soldiers actually take the field - visible raiders march out of one
+town and fight the defenders of the other - and every battle is written
+into both chronicles and the world's. The same decree can be issued
+without the baton via `/society war <a> <b>`.
+
+## The Setter Stick & player structures
+
+Craft: **stick + name tag** (shapeless). Players can raise their own
+buildings alongside the villagers':
+
+* **Premade NBT catalogue.** `/society structure list` shows all 55
+  authored structures (houses, smithies, town halls, watchtowers, ...)
+  with their CTOV NBT templates. Stand where you want it and run
+  `/society structure place <type>` - the building is stamped into the
+  world from its NBT file, centred on you, and the nearest settlement
+  counts it among its real buildings (beds, defence, research and all).
+  You can also stamp any specific NBT file with
+  `/society structure place <type> <namespace:path>`.
+* **Claim your own build.** Right-click two opposite corners of a
+  structure you built with the Setter Stick, sneak-right-click a block to
+  cycle what kind of structure it is (government building, housing, food,
+  industry, trade, knowledge, defence, or custom), name it with
+  `/society structure name <label>`, then `/society structure claim`.
+  A bell rings onto the claim so everyone can see the ground is spoken
+  for. `/society structure mine` lists your claims;
+  `/society structure remove <id>` unclaims one.
+
+## Government buildings & multiplayer
+
+A structure labelled a **government building** (or a Town Hall or Meeting
+Hall) is the seat of rule for its settlement. Players claim government
+buildings with the Setter Stick and are crowned there - see roles below.
+Player-built structures, government buildings and sovereigns all appear on
+the settlement page and in `/society settlement <name> government`.
+
+## Roles: worker, blacksmith, farmer ... king & queen
+
+`/society role set <role>` makes you a **Worker, Farmer, Blacksmith,
+Miner, Builder, Crafter, Trader, Scholar, Healer, Guard or Steward** of
+the world. While you hold a role and belong to a settlement (your home is
+picked from where you stand, or set with `/society role home <name>`), the
+settlement quietly benefits from your craft: a blacksmith's tools, a
+farmer's food, a scholar's research.
+
+The **King and Queen** are different. They are not chosen - they are
+*crowned*. Stand at a government building (claimed with the Setter Stick)
+or a Town Hall and run `/society role crown` (or `crown queen`). The
+crowned player rules that settlement in the ledger: morale and taxes rise
+under their reign, and the throne shows on every page of the town. One
+player per throne; `/society role abdicate` steps down.
+
+## The custom economy
+
+The world's currency - **Coins** by default - is yours and your friends'
+to manage. It is backed by the real wealth of every settlement on the
+map, and its value is honest about the printing press:
+
+* `/society economy print <n>` mints new notes. **Print too much and the
+  currency becomes worthless** - the world stops believing in notes it
+  cannot back, and every treasury's purchasing power quietly erodes.
+* `/society economy burn <n>` destroys notes. **Print too little and each
+  note becomes extremely valuable** - scarcer than the wealth behind it,
+  a single coin buys the town.
+* `/society economy name <name>` renames the currency.
+* `/society economy give <player> <n>` mints and hands over (inflating the
+  world as it does); `/society economy pay <player> <n>` is a straight
+  transfer between friends; `/society economy balance` shows your purse.
+* `/society economy` shows the supply, backing, and the current value of
+  one note, plus how healthy the money supply is.
+
+The ledger's treasuries are denominated in this currency, so inflation
+bites everywhere at once - and the whole world hears when the money starts
+to rot.
+
+## The kid update
+
+Baby villagers finally act their age. They run around playfully, chase
+each other and play tag around the settlement, swapping chaser and chased
+when they catch one another. But the moment anything bad happens - a war
+is declared, raiders march, monsters threaten, famine bites - the children
+stop playing, run inside the nearest house, and stay there until the
+trouble passes.
 
 ## Commands
 
@@ -223,11 +308,39 @@ scores, and a truce or tribute at the end.
 /society settlement <name> tech         known arts and research within reach
 /society settlement <name> culture      folk, styles, festival, accumulated facts
 /society settlement <name> diplomacy    regards, treaties, trade, wars
-/society settlement <name> government   ruler, laws, council
+/society settlement <name> government   ruler, laws, council, player sovereigns
 /society settlement <name> buildings    what stands, what is rising, what is blocked
 /society villager <entity>              a person's own page (entity selector)
 /society visit <name>                   teleport to a settlement's newest building
 /society history [count]                last entries of the world chronicle
+
+/society war <a> <b>                    decree war between two settlements
+
+/society structure list                 the premade NBT structure catalogue
+/society structure place <type>         stamp a premade structure where you stand
+/society structure place <type> <nbt>   stamp any namespace:path NBT file
+/society structure claim                claim the box marked with the Setter Stick
+/society structure kind <kind>          set the kind of the pending claim
+/society structure name <label>         label the pending claim
+/society structure mine                 your claimed structures
+/society structure info <type>          details and NBT paths of one structure
+/society structure remove <id>          unclaim a structure
+/society build place <type>             alias for structure place
+
+/society economy                        supply, backing and value of the currency
+/society economy print <n>              mint notes (inflation)
+/society economy burn <n>               destroy notes (deflation)
+/society economy name <name>            rename the currency
+/society economy give <player> <n>      print notes and give them away
+/society economy balance                your purse
+/society economy pay <player> <n>       transfer notes between players
+
+/society role                           your role, home and throne
+/society role list                      every role you can play
+/society role set <role>                become a worker, farmer, blacksmith, ...
+/society role home <name>               belong to a settlement
+/society role crown [queen]             be crowned at a government building
+/society role abdicate                  step down from the throne
 ```
 
 ## Configuration

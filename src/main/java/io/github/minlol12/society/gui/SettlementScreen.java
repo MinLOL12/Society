@@ -73,6 +73,8 @@ public final class SettlementScreen {
         slots.set(25, diplomacyCard(engine, s));
         slots.set(30, workforce(s));
         slots.set(32, historyCard(s));
+        slots.set(34, playersCard(engine, s));
+        slots.set(36, playerStructuresCard(engine, s));
 
         // A row of the town's most notable buildings.
         List<StructureType> notable = notableBuildings(s);
@@ -369,6 +371,65 @@ public final class SettlementScreen {
                 ChronicleEntry entry = chronicle.get(i);
                 lore.add(grey("Day " + entry.day() + ": " + entry.text()));
             }
+        }
+        lore(stack, lore);
+        return stack;
+    }
+
+    /** The players who belong to this settlement and what they do here. */
+    private static ItemStack playersCard(SocietyEngine engine, Settlement s) {
+        ItemStack stack = new ItemStack(Items.NAME_TAG);
+        name(stack, "Players & Roles", Formatting.LIGHT_PURPLE);
+        List<Text> lore = new ArrayList<Text>();
+        boolean any = false;
+        for (io.github.minlol12.society.core.data.PlayerData data
+                : engine.playerData().values()) {
+            if (!s.id().equals(data.homeSettlementId())) continue;
+            if (data.role() == null
+                    || data.role() == io.github.minlol12.society.core.types.PlayerRole.NONE) {
+                continue;
+            }
+            any = true;
+            lore.add(pair(data.playerName(), data.role().display()));
+        }
+        String rulerUuid = engine.rulerPlayers().get(s.id());
+        if (rulerUuid != null) {
+            io.github.minlol12.society.core.data.PlayerData ruler =
+                    engine.playerData().get(rulerUuid);
+            if (ruler != null) {
+                lore.add(blank());
+                lore.add(line(ruler.role().display() + " " + ruler.playerName()
+                        + " rules here.", Formatting.RED));
+            }
+        }
+        if (!any && rulerUuid == null) {
+            lore.add(grey("No players belong to this town yet."));
+            lore.add(grey("Take a role with /society role set <role>."));
+        }
+        lore(stack, lore);
+        return stack;
+    }
+
+    /** Structures the players themselves claimed on this settlement's land. */
+    private static ItemStack playerStructuresCard(SocietyEngine engine, Settlement s) {
+        ItemStack stack = new ItemStack(Items.BELL);
+        name(stack, "Player Structures", Formatting.LIGHT_PURPLE);
+        List<Text> lore = new ArrayList<Text>();
+        boolean any = false;
+        for (io.github.minlol12.society.core.data.PlayerStructure p
+                : engine.playerStructures()) {
+            if (!s.id().equals(p.settlementId())) continue;
+            any = true;
+            lore.add(Text.literal("  " + p.label() + " (").formatted(Formatting.WHITE)
+                    .append(Text.literal(p.kind().display().toLowerCase())
+                            .formatted(Formatting.AQUA))
+                    .append(Text.literal(" by " + p.ownerName() + ")")
+                            .formatted(Formatting.GRAY))
+                    .styled(style -> style.withItalic(Boolean.FALSE)));
+        }
+        if (!any) {
+            lore.add(grey("Nothing claimed here yet."));
+            lore.add(grey("Use the Setter Stick or /society structure place."));
         }
         lore(stack, lore);
         return stack;
