@@ -153,10 +153,22 @@ disasters - told on the culture page.
 
 Settlements within travel distance make first contact and start forming
 opinions - from shared blood, complementary economies, trade volume and
-old frictions. Warmth leads to trade pacts, routes, and alliances; cold,
-competing neighbours can slide into war. Wars have battles, plunder,
-scores, truces and tribute, and they are written into both towns'
-chronicles and the world's.
+old frictions. The elders do not act the moment a score crosses a line:
+every day there is only a *chance* they act on it, so nothing ever feels
+scripted. Warmth may ripen into a trade pact, then an alliance; cold,
+competing neighbours can slide into war. And once in a great while two
+states decide to become one:
+
+* **Peaceful union** - two sworn allies that have trusted one another for
+  a long time, where one town has clearly outgrown the other, may simply
+  fold the small state into the large one.
+* **Conquest** - a decisive, quick victory in war can end in outright
+  annexation instead of tribute: the victor swallows the vanquished town,
+  its people, its buildings and its treasury, and the map redraws itself
+  in a single day.
+
+Wars have battles, plunder, scores, truces and tribute, and they are
+written into both towns' chronicles and the world's.
 
 Trade also reaches **across the map**. Established merchant towns with a
 marketplace, trading post or dock send caravans down long roads and, over
@@ -218,6 +230,19 @@ towns' soldiers actually take the field - visible raiders march out of one
 town and fight the defenders of the other - and every battle is written
 into both chronicles and the world's. The same decree can be issued
 without the baton via `/society war <a> <b>`.
+
+## The Political Map
+
+Run `/society map` to open a political map of every city-state in the
+world. Each state's land is painted in its own colour - the larger the
+town, the wider its claim reaches - with white borders drawn where one
+state's ground meets another's, and the wilderness between them left
+black. A banner marks every capital, and the legend below names each
+power, its government, its population and its treaties. Your home
+settlement is marked "(home)". Hover any province to read which
+city-state holds it and how far you are from its capital. The map
+redraws itself live: annex a neighbour and its colour disappears from
+the map in the same day.
 
 ## The Setter Stick & player structures
 
@@ -303,6 +328,7 @@ trouble passes.
 /society                                help
 /society day                            ledger calendar, soul & settlement counts
 /society settlements                    every living settlement, briefly
+/society map                            the political map of the city-states
 /society settlement <name>              a settlement's overview page
 /society settlement <name> economy      stocks, prices, workforce, needs, routes
 /society settlement <name> tech         known arts and research within reach
