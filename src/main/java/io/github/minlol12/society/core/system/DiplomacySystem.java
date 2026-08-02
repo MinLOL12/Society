@@ -164,9 +164,13 @@ public final class DiplomacySystem {
         relation.setScore(next + (engine.random().nextDouble() - 0.5) * 1.6);
 
         // --- Treaty machinery -------------------------------------------------
+        // Relations do not snap into treaties the instant a score is crossed:
+        // the elders weigh their options, and every day there is only a chance
+        // they act. Neighbours may trade, swear an alliance, or take up arms -
+        // and once in a great while, a union swallows one state into another.
         switch (relation.treaty()) {
             case NONE:
-                if (relation.score() >= 20.0) {
+                if (relation.score() >= 20.0 && chance(engine, 0.2)) {
                     relation.setTreaty(Treaty.TRADE_PACT);
                     engine.recordBilateral(EventType.TRADE_PACT, a, b,
                             a.name() + " and " + b.name() + " have struck a trade pact.");
@@ -177,37 +181,71 @@ public final class DiplomacySystem {
                     }
                 } else if (relation.score() <= -55.0
                         && a.cachedPopulation() >= 8 && b.cachedPopulation() >= 8
-                        && a.tier().ordinal() >= 1 && b.tier().ordinal() >= 1) {
+                        && a.tier().ordinal() >= 1 && b.tier().ordinal() >= 1
+                        && chance(engine, 0.15)) {
                     declareWar(engine, relation, a, b);
                 }
                 break;
             case TRADE_PACT:
             case ALLIANCE:
-                if (relation.score() < -5.0) {
+                if (relation.score() < -5.0 && chance(engine, 0.5)) {
+                    Treaty was = relation.treaty();
                     relation.setTreaty(Treaty.NONE);
                     engine.recordBilateral(EventType.TRADE_PACT, a, b,
-                            "The " + (relation.treaty() == Treaty.ALLIANCE ? "alliance" : "trade pact")
+                            "The " + (was == Treaty.ALLIANCE ? "alliance" : "trade pact")
                                     + " between " + a.name() + " and " + b.name() + " has collapsed.");
-                } else if (relation.treaty() == Treaty.TRADE_PACT && relation.score() >= 65.0) {
+                } else if (relation.treaty() == Treaty.TRADE_PACT && relation.score() >= 65.0
+                        && chance(engine, 0.1)) {
                     relation.setTreaty(Treaty.ALLIANCE);
                     engine.recordBilateral(EventType.ALLIANCE, a, b,
                             a.name() + " and " + b.name() + " have sworn an alliance.");
                 } else if (relation.score() <= -55.0
-                        && a.cachedPopulation() >= 8 && b.cachedPopulation() >= 8) {
+                        && a.cachedPopulation() >= 8 && b.cachedPopulation() >= 8
+                        && chance(engine, 0.15)) {
                     declareWar(engine, relation, a, b);
+                } else if (relation.treaty() == Treaty.ALLIANCE && relation.score() >= 70.0) {
+                    tryPeacefulUnion(engine, relation, a, b);
                 }
                 break;
             case TRUCE:
                 if (relation.score() < -15.0) {
                     relation.addScore(1.2);
                 }
-                if (engine.random().nextDouble() < 0.08 && relation.score() > -40.0) {
+                if (chance(engine, 0.08) && relation.score() > -40.0) {
                     relation.setTreaty(Treaty.NONE);
                 }
                 break;
             default:
                 break;
         }
+    }
+
+    /** One daily roll of the dice for the elders' decisions. */
+    private static boolean chance(SocietyEngine engine, double probability) {
+        return engine.random().nextDouble() < probability;
+    }
+
+    /**
+     * A rare, peaceful union: when two sworn allies have trusted one another
+     * for long enough and one town has clearly outgrown the other, the small
+     * state may simply fold itself into the large one - no war, no siege,
+     * just the quiet certainty that one name is stronger than two.
+     */
+    private static void tryPeacefulUnion(SocietyEngine engine, DiplomaticRelation relation,
+                                         Settlement a, Settlement b) {
+        Settlement bigger = a.cachedPopulation() >= b.cachedPopulation() ? a : b;
+        Settlement smaller = bigger == a ? b : a;
+        int popBig = bigger.cachedPopulation();
+        int popSmall = smaller.cachedPopulation();
+        // The union must be lopsided enough to be thinkable, and trust must
+        // have had time to grow; most days the elders do nothing at all.
+        if (popSmall < 4 || popBig < 8) return;
+        if (popBig < popSmall * 3) return;
+        if (bigger.tier().ordinal() < smaller.tier().ordinal() + 2) return;
+        if (engine.day() - relation.contactDay() < 40) return;
+        if (!chance(engine, 0.02)) return;
+        if (popBig + popSmall > engine.cfg().maxCitizensPerSettlement) return;
+        engine.annex(bigger, smaller, false);
     }
 
     private static void declareWar(SocietyEngine engine, DiplomaticRelation relation, Settlement a, Settlement b) {
@@ -276,8 +314,33 @@ public final class DiplomacySystem {
         }
 
         if (Math.abs(relation.warScore()) >= 10 || relation.daysAtWar() > 25) {
+            // A decisive, quick victory may end in outright conquest rather
+            // than tribute: the victor swallows the vanquished state whole,
+            // and the map redraws itself in a single day.
+            if (Math.abs(relation.warScore()) >= 10 && relation.daysAtWar() <= 25
+                    && chance(engine, 0.35)) {
+                Settlement victor = relation.warScore() > 0 ? a : b;
+                Settlement defeated = victor == a ? b : a;
+                if (canConquer(engine, victor, defeated)) {
+                    engine.annex(victor, defeated, true);
+                    return;
+                }
+            }
             endWar(engine, relation, a, b);
         }
+    }
+
+    /**
+     * A conquered state must be small enough to be absorbed: a dwindling
+     * town, decisively outgrown by the victor, and still room under the
+     * victor's roof for its people.
+     */
+    private static boolean canConquer(SocietyEngine engine, Settlement victor, Settlement defeated) {
+        if (defeated.cachedPopulation() > 12) return false;
+        if (victor.cachedPopulation() < defeated.cachedPopulation() * 2) return false;
+        if (victor.cachedPopulation() + defeated.cachedPopulation()
+                > engine.cfg().maxCitizensPerSettlement) return false;
+        return true;
     }
 
     private static int warPower(SocietyEngine engine, Settlement s) {

@@ -40,6 +40,7 @@ public enum EventType {
     WAR_START(Level.GLOBAL),
     BATTLE(Level.LOCAL),
     WAR_END(Level.GLOBAL),
+    ANNEXATION(Level.GLOBAL),
 
     FAMINE(Level.LOCAL),
     FIRE(Level.LOCAL),

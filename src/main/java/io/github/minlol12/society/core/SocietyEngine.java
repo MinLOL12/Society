@@ -407,6 +407,71 @@ public final class SocietyEngine {
         relation.setScore(initial);
     }
 
+    /**
+     * One settlement absorbs another: its people, its standing buildings and
+     * most of its wealth pass under the annexor's banner, and the absorbed
+     * settlement ceases to exist as a political entity. Its chronicle and
+     * its name live on in the world history. Called by the diplomacy system
+     * when two states unite on their own - peacefully between very close
+     * allies, or by the sword at the end of a lopsided war.
+     *
+     * @param byConquest true when a war was won, false for a peaceful union
+     */
+    public boolean annex(Settlement annexor, Settlement target, boolean byConquest) {
+        if (annexor == null || target == null || annexor.isDestroyed() || target.isDestroyed()
+                || annexor.id().equals(target.id())) {
+            return false;
+        }
+        int day = currentDay;
+
+        // The people pass under the new banner, keeping their families and homes.
+        for (String citizenId : new ArrayList<String>(target.citizenIds())) {
+            Citizen c = citizens.get(citizenId);
+            if (c != null && c.isAlive()) {
+                transferCitizen(c, annexor);
+            }
+        }
+
+        // The standing buildings become the annexor's plots.
+        annexor.buildings().addAll(target.buildings());
+        target.buildings().clear();
+
+        // Wealth: most of it follows the flag; a little is lost in the shuffle.
+        double share = byConquest ? 0.5 : 0.8;
+        annexor.addTreasury(target.treasury() * share);
+        for (Good good : Good.values()) {
+            annexor.addStock(good, target.stock(good) * share);
+        }
+
+        // History remembers both names.
+        annexor.culture().addFact(byConquest
+                ? "annexed " + target.name() + " by conquest on Day " + day
+                : "united with " + target.name() + " on Day " + day);
+        target.culture().addFact(byConquest
+                ? "was swallowed by " + annexor.name() + " on Day " + day
+                : "joined " + annexor.name() + " on Day " + day);
+
+        recordBilateral(EventType.ANNEXATION, annexor, target,
+                (byConquest ? "Total war! " : "A union of two houses: ")
+                        + annexor.name() + " has annexed " + target.name()
+                        + (byConquest ? " by the sword" : " in a peaceful union")
+                        + ". Its people, its halls and its treasure now answer to "
+                        + annexor.name() + ".");
+
+        // The annexed state keeps no treaties, no trade routes and no throne.
+        relations.removeIf(r -> r.involves(target.id()));
+        routes.removeIf(r -> r.involves(target.id()));
+        rulerPlayers.remove(target.id());
+        for (PlayerData d : playerData.values()) {
+            if (target.id().equals(d.homeSettlementId())) {
+                d.setHomeSettlementId(annexor.id());
+            }
+        }
+        target.setDestroyed(true);
+        markDirty();
+        return true;
+    }
+
     // =====================================================================
     // World observation: villager snapshots
     // =====================================================================

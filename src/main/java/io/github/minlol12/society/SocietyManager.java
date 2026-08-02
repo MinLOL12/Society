@@ -337,20 +337,31 @@ public final class SocietyManager {
 
         // 1. Villagers react to threats: the brave stand and fight, the timid
         //    and the young turn and run. Not everyone charges a monster.
+        //    War raiders are skipped here on purpose - they have their own
+        //    marching-and-fighting logic in processWarRaiders, and counting
+        //    them as generic threats made raiders fight their own camp and
+        //    bleed out on the road before ever reaching the enemy town.
         for (UUID uuid : new ArrayList<UUID>(loadedVillagers)) {
+            if (warRaiders.containsKey(uuid)) continue;
             Entity entity = overworld.getEntity(uuid);
             if (!(entity instanceof VillagerEntity) || !entity.isAlive()) continue;
             VillagerEntity villager = (VillagerEntity) entity;
 
+            Citizen c = engine.citizenForEntity(uuid.toString());
+            String homeSettlementId = c == null ? "" : c.homeSettlementId();
+
+            // Only raiders marching on THIS villager's home town are enemies;
+            // a raider's own village and its fellow soldiers are not.
             List<MobEntity> hostiles = overworld.getEntitiesByClass(MobEntity.class,
                     villager.getBoundingBox().expand(16.0),
-                    e -> e.isAlive() && (e instanceof HostileEntity || e.getTarget() == villager || warRaiders.containsKey(e.getUuid()) || (e instanceof VillagerEntity && warRaiderTargets.containsKey(e.getUuid()))));
+                    e -> e.isAlive() && (e instanceof HostileEntity
+                            || e.getTarget() == villager
+                            || isEnemyRaiderOf(e.getUuid(), homeSettlementId)));
             if (hostiles.isEmpty()) continue;
             MobEntity target = hostiles.get(0);
 
             int aggression = 50;
             int caution = 50;
-            Citizen c = engine.citizenForEntity(uuid.toString());
             if (c != null) {
                 aggression = c.personality().get(Trait.AGGRESSION);
                 caution = c.personality().get(Trait.CAUTION);
@@ -412,7 +423,9 @@ public final class SocietyManager {
                 List<MobEntity> settlementHostiles = overworld.getEntitiesByClass(MobEntity.class,
                         new Box(s.centerX() - 64, s.centerY() - 32, s.centerZ() - 64,
                                 s.centerX() + 64, s.centerY() + 32, s.centerZ() + 64),
-                        e -> e.isAlive() && (e instanceof HostileEntity || e.getTarget() instanceof VillagerEntity));
+                        e -> e.isAlive() && (e instanceof HostileEntity
+                                || e.getTarget() instanceof VillagerEntity
+                                || isEnemyRaiderOf(e.getUuid(), s.id())));
                 if (settlementHostiles.size() >= 3) {
                     if (engine.day() > lastArmyDeployDay.getOrDefault(s.id(), Integer.valueOf(-10)).intValue()) {
                         lastArmyDeployDay.put(s.id(), Integer.valueOf(engine.day()));
@@ -715,7 +728,12 @@ public final class SocietyManager {
             VillagerEntity raider = (VillagerEntity) entity;
             String enemyId = warRaiderTargets.get(id);
             Settlement enemy = enemyId == null ? null : engine.settlements().get(enemyId);
-            if (enemy == null) {
+            // The enemy town is gone (annexed or abandoned): the war is over
+            // for this soldier - they march no more.
+            if (enemy == null || enemy.isDestroyed()) {
+                entity.discard();
+                warRaiders.remove(id);
+                warRaiderTargets.remove(id);
                 continue;
             }
             List<VillagerEntity> foes = overworld.getEntitiesByClass(VillagerEntity.class,
@@ -787,6 +805,20 @@ public final class SocietyManager {
             return enemySettlementId.equals(c.homeSettlementId());
         }
         return false;
+    }
+
+    /**
+     * Is this entity a war raider currently marching on the given settlement?
+     * A raider is only an enemy to the town it was sent against - never to
+     * its own village, and never to its fellow soldiers marching beside it.
+     */
+    private boolean isEnemyRaiderOf(UUID raiderUuid, String settlementId) {
+        if (settlementId == null || settlementId.isEmpty()
+                || !warRaiders.containsKey(raiderUuid)) {
+            return false;
+        }
+        String target = warRaiderTargets.get(raiderUuid);
+        return target != null && target.equals(settlementId);
     }
 
     private Settlement firstWarEnemy(Settlement s) {
@@ -932,11 +964,13 @@ public final class SocietyManager {
             }
             if (towers.isEmpty()) continue;
 
-            // Find hostile mobs near the settlement
+            // Find hostile mobs near the settlement - monsters and any raiders
+            // marching on this town (allied raiders pass their own gates freely).
             List<MobEntity> hostiles = overworld.getEntitiesByClass(MobEntity.class,
                     new Box(s.centerX() - 48, s.centerY() - 16, s.centerZ() - 48,
                             s.centerX() + 48, s.centerY() + 16, s.centerZ() + 48),
-                    e -> e.isAlive() && e instanceof HostileEntity);
+                    e -> e.isAlive() && (e instanceof HostileEntity
+                            || isEnemyRaiderOf(e.getUuid(), s.id())));
             if (hostiles.isEmpty()) continue;
 
             // Find guard villagers near watchtowers who have bows

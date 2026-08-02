@@ -20,6 +20,7 @@ import io.github.minlol12.society.core.data.Settlement;
 import io.github.minlol12.society.core.system.PlayerRoleSystem;
 import io.github.minlol12.society.core.types.PlayerRole;
 import io.github.minlol12.society.core.types.PlayerStructureKind;
+import io.github.minlol12.society.gui.PoliticalMapScreen;
 import io.github.minlol12.society.item.SetterStickItem;
 import io.github.minlol12.society.item.SocietyItems;
 import io.github.minlol12.society.world.CultureSamplerImpl;
@@ -73,6 +74,7 @@ public final class SocietyCommands {
                 send(player, "--- Society ---", Formatting.GOLD);
                 send(player, "/society day - the ledger's calendar", Formatting.GRAY);
                 send(player, "/society settlements - every living settlement", Formatting.GRAY);
+                send(player, "/society map - the political map of the city-states", Formatting.GRAY);
                 send(player, "/society settlement <name> [info|economy|tech|culture|"
                         + "diplomacy|government|buildings]", Formatting.GRAY);
                 send(player, "/society villager <entity> - a person's own page", Formatting.GRAY);
@@ -97,6 +99,9 @@ public final class SocietyCommands {
 
             root.then(CommandManager.literal("day").executes(context ->
                     withPlayer(context.getSource(), SocietyText::printDayLine)));
+
+            root.then(CommandManager.literal("map").executes(context ->
+                    withPlayer(context.getSource(), SocietyCommands::openPoliticalMap)));
 
             root.then(CommandManager.literal("settlements").executes(context ->
                     withPlayer(context.getSource(), SocietyText::printSettlementList)));
@@ -864,6 +869,13 @@ public final class SocietyCommands {
             }
             manager.teleportToConstruction(player, settlement);
         });
+    }
+
+    /** Opens the political map: every city-state's land in its own colour. */
+    private static void openPoliticalMap(ServerPlayerEntity player, SocietyEngine engine) {
+        String homeId = engine.playerDataFor(player.getUuidAsString(),
+                player.getGameProfile().getName()).homeSettlementId();
+        PoliticalMapScreen.open(player, engine, homeId);
     }
 
     // =====================================================================
