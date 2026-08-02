@@ -41,19 +41,44 @@ All HUD elements can be toggled:
 ## Build
 
 ### Requirements
-- Geode SDK (`$GEODE_SDK` env var)
+- [Geode SDK](https://docs.geode-sdk.org/getting-started/) (installed separately)
 - CMake 3.21+
 - C++23 compiler (MSVC / clang)
 
-```bash
-# Clone with Geode CLI
-geode new   # select this folder as existing mod, or just:
+CMake needs to know where the **Geode SDK source directory** is (the directory
+containing its `CMakeLists.txt`). You can provide it with the `GEODE_SDK`
+environment variable or the `GEODE_SDK` CMake option.
 
-# Standard build
+#### Windows PowerShell
+
+For the current PowerShell window, set the SDK path before configuring:
+
+```powershell
+$env:GEODE_SDK = "C:\path\to\geode"
+cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build --config RelWithDebInfo
+```
+
+Alternatively, pass the path directly (this is useful when using a fresh
+PowerShell window):
+
+```powershell
+cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DGEODE_SDK="C:\path\to\geode"
+cmake --build build --config RelWithDebInfo
+```
+
+Replace `C:\path\to\geode` with your SDK directory. Do not run the build
+command after a failed configure: CMake does not create `ALL_BUILD.vcxproj`
+until it has found the SDK and configured successfully.
+
+#### Other platforms / Geode CLI
+
+```bash
+# Standard build (with GEODE_SDK exported in your shell)
 cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build --config RelWithDebInfo
 
-# or via Geode CLI
+# Or via Geode CLI
 geode build
 ```
 
