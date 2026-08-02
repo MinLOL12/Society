@@ -1,36 +1,31 @@
-# gradle
-# Anchored to the repo root so they only match Gradle's own output - an
-# unanchored "build/" would also swallow src/.../core/build/, which is
-# source code, not artefacts.
+# Geode
+build/
+geode/
+*.geode
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
 
-/.gradle/
-/build/
-/out/
-/classes/
-
-# loom
-
-run/
-remappedSrc/
-
-# fabric
-
-.fabric/
-
-# intellij
-
+# IDE
+.vscode/
 .idea/
-*.iml
-*.ipr
-*.iws
+*.code-workspace
+*.xcodeproj/
+*.xcworkspace/
 
-# eclipse (including vscode)
-
-.classpath
-.project
-.settings/
-/bin/
-
-# macos
-
+# OS
 .DS_Store
+Thumbs.db
+
+# C++
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+
+# Logs
+logs/
+
+# Keep resources
+!resources/
