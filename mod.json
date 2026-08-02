@@ -1,0 +1,192 @@
+{
+	"geode": "v4.6.1",
+	"gd": {
+		"win": "2.2074",
+		"android": "2.2074",
+		"mac": "2.2074"
+	},
+	"id": "minlol.progressive-stats",
+	"name": "Progressive Stats",
+	"version": "v1.0.0",
+	"developer": "MinLOL12",
+	"description": "Live in-game HUD showing progress, best, attempts, playtime, consistency, average and session stats. Track your improvement on any level!",
+	"dependencies": {
+		"geode.node-ids": ">=v1.15.0",
+		"cvolton.level-id-api": {
+			"version": ">=v1.3.0",
+			"required": false
+		}
+	},
+	"tags": ["offline", "utility", "gameplay", "interface"],
+	"links": {
+		"source": "https://github.com/MinLOL12/Society",
+		"community": "https://discord.gg/geometrydash"
+	},
+	"issues": {
+		"url": "https://github.com/MinLOL12/Society/issues",
+		"info": "Report bugs or suggest features!"
+	},
+	"settings": {
+		"hud-enabled": {
+			"name": "Enable HUD",
+			"description": "Show the stats overlay during gameplay.",
+			"type": "bool",
+			"default": true
+		},
+		"general-title": {
+			"name": "HUD Layout",
+			"type": "title",
+			"description": "General"
+		},
+		"hud-position": {
+			"name": "HUD Position",
+			"description": "Corner where the stats HUD should appear.",
+			"type": "string",
+			"one-of": ["Top Left", "Top Right", "Bottom Left", "Bottom Right", "Custom"],
+			"default": "Top Left"
+		},
+		"hud-x": {
+			"name": "Custom X (%)",
+			"description": "Horizontal position for Custom mode (0-100% of screen).",
+			"type": "float",
+			"default": 0.02,
+			"min": 0.0,
+			"max": 1.0,
+			"control": { "slider": true },
+			"enable-if": "hud-position == \"Custom\""
+		},
+		"hud-y": {
+			"name": "Custom Y (%)",
+			"description": "Vertical position for Custom mode (0-100%).",
+			"type": "float",
+			"default": 0.82,
+			"min": 0.0,
+			"max": 1.0,
+			"control": { "slider": true },
+			"enable-if": "hud-position == \"Custom\""
+		},
+		"hud-scale": {
+			"name": "HUD Scale",
+			"type": "float",
+			"default": 1.0,
+			"min": 0.4,
+			"max": 2.0,
+			"control": { "slider": true }
+		},
+		"bg-opacity": {
+			"name": "Background Opacity",
+			"type": "int",
+			"default": 70,
+			"min": 0,
+			"max": 100,
+			"control": { "slider": true }
+		},
+		"compact-mode": {
+			"name": "Compact Mode",
+			"description": "Use smaller, tighter layout.",
+			"type": "bool",
+			"default": false
+		},
+		"decimals": {
+			"name": "Percent Decimals",
+			"type": "int",
+			"default": 2,
+			"min": 0,
+			"max": 2
+		},
+		"labels-title": {
+			"name": "Visible Labels",
+			"type": "title"
+		},
+		"show-current": {
+			"name": "Show Current %",
+			"type": "bool",
+			"default": true
+		},
+		"show-best": {
+			"name": "Show Best %",
+			"type": "bool",
+			"default": true
+		},
+		"show-session-best": {
+			"name": "Show Session Best",
+			"type": "bool",
+			"default": true
+		},
+		"show-attempts": {
+			"name": "Show Attempts",
+			"type": "bool",
+			"default": true
+		},
+		"show-jumps": {
+			"name": "Show Jumps (run)",
+			"type": "bool",
+			"default": true
+		},
+		"show-playtime": {
+			"name": "Show Playtime",
+			"type": "bool",
+			"default": true
+		},
+		"show-session-time": {
+			"name": "Show Session Time",
+			"type": "bool",
+			"default": true
+		},
+		"show-average": {
+			"name": "Show Average %",
+			"description": "Average of last 50 runs.",
+			"type": "bool",
+			"default": true
+		},
+		"show-consistency": {
+			"name": "Show Consistency",
+			"description": "How often you pass 25/50/75%.",
+			"type": "bool",
+			"default": true
+		},
+		"show-progress-bar": {
+			"name": "Show Progress Bar",
+			"type": "bool",
+			"default": true
+		},
+		"tracking-title": {
+			"name": "Tracking Options",
+			"type": "title"
+		},
+		"track-practice": {
+			"name": "Track Practice Mode",
+			"description": "If disabled, practice runs are not counted in stats.",
+			"type": "bool",
+			"default": false
+		},
+		"count-practice-attempts": {
+			"name": "Count Practice as Attempts",
+			"type": "bool",
+			"default": false,
+			"enable-if": "track-practice"
+		},
+		"reset-session-on-exit": {
+			"name": "Reset Session on Level Exit",
+			"description": "Start fresh session each time you enter a level.",
+			"type": "bool",
+			"default": false
+		},
+		"colored-best": {
+			"name": "Color New Best",
+			"description": "Highlight new bests in green.",
+			"type": "bool",
+			"default": true
+		},
+		"sfx-new-best": {
+			"name": "Sound on New Best",
+			"type": "bool",
+			"default": true
+		}
+	},
+	"resources": {
+		"sprites": [
+			"resources/*.png"
+		]
+	}
+}
